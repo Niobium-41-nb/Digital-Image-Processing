@@ -4,7 +4,7 @@
 
 import numpy as np
 from src.video_converter import mp4_to_grayscale_array, gray_array_to_mp4,two_gray_array_to_GB_mp4
-from src.temporal_convolver import create_temporal_motion_blur, apply_temporal_convolution,apply_frame_convolution
+from src.temporal_convolver import create_temporal_motion_blur, apply_temporal_convolution,apply_frame_convolution,apply_peel_max
 
 arr = mp4_to_grayscale_array("data\\dual_scroll_background_right_foreground_down.mp4")
 
@@ -21,8 +21,11 @@ convolution2 = np.array([
 ])
 processed_arr = apply_temporal_convolution(arr, convolution)
 
-result1 = apply_frame_convolution(processed_arr, convolution1)
-result2 = apply_frame_convolution(processed_arr, convolution2)
+tmp1=apply_frame_convolution(processed_arr, convolution1)
+tmp2=apply_frame_convolution(processed_arr, convolution2)
+
+result1 = apply_peel_max(tmp1,20)
+result2 = apply_peel_max(tmp2,20)
 
 gray_array_to_mp4(processed_arr, "output/output_video.mp4")
 gray_array_to_mp4(result1, "output/output_video1.mp4")

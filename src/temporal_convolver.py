@@ -78,6 +78,35 @@ def apply_frame_convolution(array: np.ndarray, convolution: np.ndarray) -> np.nd
     
     return result
 
+def apply_peel_max(array: np.ndarray, size: int = 5) -> np.ndarray:
+    """对每一帧图像执行最大池化。
+
+    输入:
+        array: 形状为 (frames, height, width) 的三维数组
+        size: 池化核大小，即池化窗口为 (size, size)
+    返回:
+        经过最大池化后的数组，输出形状为 (frames, height//size, width//size)。
+    """
+    if array.ndim != 3:
+        raise ValueError("Array must be 3D with shape (frames, height, width)")
+    
+    frames, height, width = array.shape
+    if height % size != 0 or width % size != 0:
+        raise ValueError("Height and width must be divisible by size")
+    
+    new_height = height // size
+    new_width = width // size
+    result = np.zeros((frames, new_height, new_width), dtype=array.dtype)
+    
+    for f in range(frames):
+        frame = array[f]
+        # Reshape to (new_height, size, new_width, size)
+        reshaped = frame.reshape(new_height, size, new_width, size)
+        # Take max over the pooling dimensions (axis 1 and 3)
+        result[f] = reshaped.max(axis=(1, 3))
+    
+    return result
+
 def main():
     from .video_converter import mp4_to_grayscale_array, gray_array_to_mp4
 
