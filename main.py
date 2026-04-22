@@ -10,7 +10,7 @@ from gray_array_to_mp4 import gray_array_to_mp4
 from f import f, create_temporal_motion_blur
 
 # 加载视频为灰度数组
-arr = mp4_to_grayscale_array("kinetic_boundary_waterfall.mp4")
+arr = mp4_to_grayscale_array("dual_scroll_background_right_foreground_down.mp4")
 
 print("arr.shape : \n" , arr.shape)
 
