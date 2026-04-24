@@ -23,7 +23,11 @@ def mp4_to_grayscale_array(mp4_path: str) -> np.ndarray:
     if not cap.isOpened():
         raise RuntimeError(f"无法打开视频文件: {mp4_path}")
 
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    print(f"开始读取视频，共 {total_frames} 帧")
+
     frames = []
+    frame_idx = 0
     while True:
         ret, frame = cap.read()
         if not ret:
@@ -31,6 +35,10 @@ def mp4_to_grayscale_array(mp4_path: str) -> np.ndarray:
 
         gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
         frames.append(gray)
+        frame_idx += 1
+
+        if frame_idx % 30 == 0:
+            print(f"已读取帧: {frame_idx}/{total_frames}")
 
     cap.release()
 
@@ -57,6 +65,7 @@ def gray_array_to_mp4(array: np.ndarray, output_path: str, fps: float = 25.0, co
     if not writer.isOpened():
         raise RuntimeError(f"无法打开视频写入器进行输出: {output_path}")
 
+    print(f"开始写入视频，共 {frame_count} 帧")
     for i in range(frame_count):
         frame = array[i]
         if frame.shape != (height, width):
@@ -69,7 +78,11 @@ def gray_array_to_mp4(array: np.ndarray, output_path: str, fps: float = 25.0, co
 
         writer.write(frame)
 
+        if (i + 1) % 30 == 0:
+            print(f"已写入帧: {i + 1}/{frame_count}")
+
     writer.release()
+    print(f"视频写入完成: {output_path}")
 
 def two_gray_array_to_GB_mp4(array_G: np.ndarray, array_B: np.ndarray, output_path: str, fps: float = 25.0, codec: str = "mp4v") -> None:
     """将两个灰度三维NumPy数组作为彩色视频的G和B通道写入MP4文件。
@@ -91,6 +104,7 @@ def two_gray_array_to_GB_mp4(array_G: np.ndarray, array_B: np.ndarray, output_pa
     if not writer.isOpened():
         raise RuntimeError(f"无法打开视频写入器进行输出: {output_path}")
 
+    print(f"开始写入GB通道视频，共 {frame_count} 帧")
     for i in range(frame_count):
         frame_G = array_G[i]
         frame_B = array_B[i]
@@ -109,7 +123,11 @@ def two_gray_array_to_GB_mp4(array_G: np.ndarray, array_B: np.ndarray, output_pa
 
         writer.write(color_frame)
 
+        if (i + 1) % 30 == 0:
+            print(f"已写入帧: {i + 1}/{frame_count}")
+
     writer.release()
+    print(f"GB通道视频写入完成: {output_path}")
 
 def three_gray_array_to_RGB_mp4(array_R: np.ndarray, array_G: np.ndarray, array_B: np.ndarray, output_path: str, fps: float = 25.0, codec: str = "mp4v") -> None:
     """将三个灰度三维NumPy数组作为彩色视频的RGB通道写入MP4文件。
@@ -131,6 +149,7 @@ def three_gray_array_to_RGB_mp4(array_R: np.ndarray, array_G: np.ndarray, array_
     if not writer.isOpened():
         raise RuntimeError(f"无法打开视频写入器进行输出: {output_path}")
 
+    print(f"开始写入RGB通道视频，共 {frame_count} 帧")
     for i in range(frame_count):
         frame_R = array_R[i]
         frame_G = array_G[i]
@@ -147,13 +166,17 @@ def three_gray_array_to_RGB_mp4(array_R: np.ndarray, array_G: np.ndarray, array_
             frame_G = np.clip(frame_G, 0, 255).astype(np.uint8)
         if frame_B.dtype != np.uint8:
             frame_B = np.clip(frame_B, 0, 255).astype(np.uint8)
-        color_frame[:, :, 2] = frame_R  # OpenCV使用BGR顺序
+        color_frame[:, :, 2] = frame_R
         color_frame[:, :, 1] = frame_G
         color_frame[:, :, 0] = frame_B
 
         writer.write(color_frame)
 
+        if (i + 1) % 30 == 0:
+            print(f"已写入帧: {i + 1}/{frame_count}")
+
     writer.release()
+    print(f"RGB通道视频写入完成: {output_path}")
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="将MP4转换为灰度三维NumPy数组。")

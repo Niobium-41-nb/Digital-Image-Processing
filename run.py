@@ -6,10 +6,10 @@ import numpy as np
 from src.video_converter import mp4_to_grayscale_array, gray_array_to_mp4,two_gray_array_to_GB_mp4,three_gray_array_to_RGB_mp4
 from src.temporal_convolver import create_temporal_motion_blur, apply_temporal_convolution,apply_frame_convolution,apply_peel_max,apply_diff
 
-arr = mp4_to_grayscale_array("data\\kinetic_boundary_waterfall.mp4")
+arr = mp4_to_grayscale_array("data\\dual_scroll_background_right_foreground_down.mp4")
 
 # 卷积核
-convolution = create_temporal_motion_blur(5, 5, 5)
+convolution = create_temporal_motion_blur(3, 3, 3)
 convolution1 = np.array([
     [1,0,-1],
     [1,0,-1],
@@ -46,4 +46,5 @@ gray_array_to_mp4(processed_arr, "output/output_video.mp4")
 gray_array_to_mp4(result1, "output/output_video1.mp4")
 gray_array_to_mp4(result2, "output/output_video2.mp4")
 gray_array_to_mp4(result3, "output/output_video3.mp4")
-three_gray_array_to_RGB_mp4(result1,result2,result3,"output/output_video_RGB.mp4")
+# three_gray_array_to_RGB_mp4(result1,result2,result3,"output/output_video_RGB.mp4")
+two_gray_array_to_GB_mp4(result1,result2,"output/output_video_GB.mp4")

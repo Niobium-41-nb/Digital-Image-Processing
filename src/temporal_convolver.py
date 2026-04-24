@@ -49,7 +49,12 @@ def apply_temporal_convolution(array: np.ndarray, convolution: np.ndarray) -> np
     if convolution.ndim != 3:
         raise ValueError("convolution kernel must have 3 dimensions")
 
+    frames = array.shape[0]
+    print(f"开始时间维度卷积处理，共 {frames} 帧")
+
     result = convolve(array.astype(np.float64), convolution, mode='constant', cval=0.0)
+
+    print("时间维度卷积处理完成")
     return result
 
 def apply_frame_convolution(array: np.ndarray, convolution: np.ndarray) -> np.ndarray:
@@ -72,10 +77,15 @@ def apply_frame_convolution(array: np.ndarray, convolution: np.ndarray) -> np.nd
     # 对每一帧应用二维卷积
     frames, height, width = array.shape
     result = np.zeros_like(array, dtype=np.float64)
-    
+
+    print(f"开始逐帧卷积处理，共 {frames} 帧")
     for i in range(frames):
         result[i] = convolve(array[i].astype(np.float64), convolution, mode='constant', cval=0.0)
-    
+
+        if (i + 1) % 30 == 0:
+            print(f"已处理帧: {i + 1}/{frames}")
+
+    print("逐帧卷积处理完成")
     return result
 
 def apply_diff(array:np.array) -> np.ndarray:
@@ -93,12 +103,15 @@ def apply_diff(array:np.array) -> np.ndarray:
     
     frames, height, width = array.shape
     result = np.zeros_like(array, dtype=np.float64)
-    
-    # 计算相邻帧的差分
-    result[1:] = array[1:] - array[:-1]
-    # 第一帧设置为0
+
+    print(f"开始差分处理，共 {frames} 帧")
+    for i in range(1, frames):
+        result[i] = array[i] - array[i - 1]
+        if i % 30 == 0:
+            print(f"已处理帧: {i}/{frames}")
+
     result[0] = 0
-    
+    print("差分处理完成")
     return result.astype(array.dtype)
 
 def apply_peel_max(array: np.ndarray, size: int = 5) -> np.ndarray:
@@ -115,10 +128,15 @@ def apply_peel_max(array: np.ndarray, size: int = 5) -> np.ndarray:
     
     frames, height, width = array.shape
     result = np.zeros_like(array, dtype=np.float64)
-    
+
+    print(f"开始逐帧最大池化处理，共 {frames} 帧")
     for f in range(frames):
         result[f] = maximum_filter(array[f].astype(np.float64), size=size, mode='constant', cval=0.0)
-    
+
+        if (f + 1) % 30 == 0:
+            print(f"已处理帧: {f + 1}/{frames}")
+
+    print("逐帧最大池化处理完成")
     return result.astype(array.dtype)
 
 def main():

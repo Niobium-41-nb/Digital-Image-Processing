@@ -1,4 +1,3 @@
-output_frames
-img/*
 .venv/*
-video/*
+output/*
+data/*
