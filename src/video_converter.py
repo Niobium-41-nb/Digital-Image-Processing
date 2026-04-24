@@ -12,16 +12,16 @@ import numpy as np
 
 
 def mp4_to_grayscale_array(mp4_path: str) -> np.ndarray:
-    """Read an MP4 file and return a grayscale 3D NumPy array.
+    """读取MP4文件并返回灰度三维NumPy数组。
 
-    The returned array shape is (frame_count, height, width).
+    返回的数组形状为 (帧数, 高度, 宽度)。
     """
     if not os.path.isfile(mp4_path):
-        raise FileNotFoundError(f"MP4 file not found: {mp4_path}")
+        raise FileNotFoundError(f"未找到MP4文件: {mp4_path}")
 
     cap = cv2.VideoCapture(mp4_path)
     if not cap.isOpened():
-        raise RuntimeError(f"Cannot open video file: {mp4_path}")
+        raise RuntimeError(f"无法打开视频文件: {mp4_path}")
 
     frames = []
     while True:
@@ -41,27 +41,27 @@ def mp4_to_grayscale_array(mp4_path: str) -> np.ndarray:
 
 
 def gray_array_to_mp4(array: np.ndarray, output_path: str, fps: float = 25.0, codec: str = "mp4v") -> None:
-    """Write a grayscale 3D NumPy array to an MP4 file.
+    """将灰度三维NumPy数组写入MP4文件。
 
-    The input array shape must be (frames, height, width).
+    输入数组形状必须为 (帧数, 高度, 宽度)。
     """
     if array.ndim != 3:
-        raise ValueError("Input array must have shape (frames, height, width)")
+        raise ValueError("输入数组必须为形状 (帧数, 高度, 宽度)")
 
     frame_count, height, width = array.shape
     if frame_count == 0:
-        raise ValueError("Input array contains no frames")
+        raise ValueError("输入数组包含零帧")
 
     fourcc = cv2.VideoWriter_fourcc(*codec)
     writer = cv2.VideoWriter(output_path, fourcc, fps, (width, height), isColor=False)
     if not writer.isOpened():
-        raise RuntimeError(f"Failed to open VideoWriter for output: {output_path}")
+        raise RuntimeError(f"无法打开视频写入器进行输出: {output_path}")
 
     for i in range(frame_count):
         frame = array[i]
         if frame.shape != (height, width):
             raise ValueError(
-                f"All frames must have shape (height, width); frame {i} has shape {frame.shape}"
+                f"所有帧必须为 (高度, 宽度) 的形状; 第 {i} 帧的形状为 {frame.shape}"
             )
 
         if frame.dtype != np.uint8:
@@ -72,61 +72,103 @@ def gray_array_to_mp4(array: np.ndarray, output_path: str, fps: float = 25.0, co
     writer.release()
 
 def two_gray_array_to_GB_mp4(array_G: np.ndarray, array_B: np.ndarray, output_path: str, fps: float = 25.0, codec: str = "mp4v") -> None:
-    """Write two grayscale 3D NumPy arrays to an MP4 file as a color video with G and B channels.
+    """将两个灰度三维NumPy数组作为彩色视频的G和B通道写入MP4文件。
 
-    The input arrays must have shape (frames, height, width).
-    The output video will have R=0, G=from array_G, B=from array_B.
+    输入数组形状必须为 (帧数, 高度, 宽度)。
+    输出视频的R=0, G通道来自array_G, B通道来自array_B。
     """
     if array_G.ndim != 3 or array_B.ndim != 3:
-        raise ValueError("Input arrays must have shape (frames, height, width)")
+        raise ValueError("输入数组必须为形状 (帧数, 高度, 宽度)")
     if array_G.shape != array_B.shape:
-        raise ValueError("Both input arrays must have the same shape")
+        raise ValueError("两个输入数组必须具有相同的形状")
 
     frame_count, height, width = array_G.shape
     if frame_count == 0:
-        raise ValueError("Input arrays contain no frames")
+        raise ValueError("输入数组包含零帧")
 
     fourcc = cv2.VideoWriter_fourcc(*codec)
     writer = cv2.VideoWriter(output_path, fourcc, fps, (width, height), isColor=True)
     if not writer.isOpened():
-        raise RuntimeError(f"Failed to open VideoWriter for output: {output_path}")
+        raise RuntimeError(f"无法打开视频写入器进行输出: {output_path}")
 
     for i in range(frame_count):
         frame_G = array_G[i]
         frame_B = array_B[i]
         if frame_G.shape != (height, width) or frame_B.shape != (height, width):
             raise ValueError(
-                f"All frames must have shape (height, width); frame {i} has shapes {frame_G.shape} and {frame_B.shape}"
+                f"所有帧必须为 (高度, 宽度) 的形状; 第 {i} 帧的形状为 {frame_G.shape} 和 {frame_B.shape}"
             )
 
-        # Create color frame: R=0, G=frame_G, B=frame_B
         color_frame = np.zeros((height, width, 3), dtype=np.uint8)
         if frame_G.dtype != np.uint8:
             frame_G = np.clip(frame_G, 0, 255).astype(np.uint8)
         if frame_B.dtype != np.uint8:
             frame_B = np.clip(frame_B, 0, 255).astype(np.uint8)
-        color_frame[:, :, 1] = frame_G  # G channel
-        color_frame[:, :, 2] = frame_B  # B channel
+        color_frame[:, :, 1] = frame_G
+        color_frame[:, :, 2] = frame_B
 
         writer.write(color_frame)
 
     writer.release()
 
+def three_gray_array_to_RGB_mp4(array_R: np.ndarray, array_G: np.ndarray, array_B: np.ndarray, output_path: str, fps: float = 25.0, codec: str = "mp4v") -> None:
+    """将三个灰度三维NumPy数组作为彩色视频的RGB通道写入MP4文件。
+
+    输入数组形状必须为 (帧数, 高度, 宽度)。
+    输出视频的R通道来自array_R, G通道来自array_G, B通道来自array_B。
+    """
+    if array_R.ndim != 3 or array_G.ndim != 3 or array_B.ndim != 3:
+        raise ValueError("输入数组必须为形状 (帧数, 高度, 宽度)")
+    if array_R.shape != array_G.shape or array_R.shape != array_B.shape:
+        raise ValueError("三个输入数组必须具有相同的形状")
+
+    frame_count, height, width = array_R.shape
+    if frame_count == 0:
+        raise ValueError("输入数组包含零帧")
+
+    fourcc = cv2.VideoWriter_fourcc(*codec)
+    writer = cv2.VideoWriter(output_path, fourcc, fps, (width, height), isColor=True)
+    if not writer.isOpened():
+        raise RuntimeError(f"无法打开视频写入器进行输出: {output_path}")
+
+    for i in range(frame_count):
+        frame_R = array_R[i]
+        frame_G = array_G[i]
+        frame_B = array_B[i]
+        if frame_R.shape != (height, width) or frame_G.shape != (height, width) or frame_B.shape != (height, width):
+            raise ValueError(
+                f"所有帧必须为 (高度, 宽度) 的形状; 第 {i} 帧的形状为 {frame_R.shape}, {frame_G.shape} 和 {frame_B.shape}"
+            )
+
+        color_frame = np.zeros((height, width, 3), dtype=np.uint8)
+        if frame_R.dtype != np.uint8:
+            frame_R = np.clip(frame_R, 0, 255).astype(np.uint8)
+        if frame_G.dtype != np.uint8:
+            frame_G = np.clip(frame_G, 0, 255).astype(np.uint8)
+        if frame_B.dtype != np.uint8:
+            frame_B = np.clip(frame_B, 0, 255).astype(np.uint8)
+        color_frame[:, :, 2] = frame_R  # OpenCV使用BGR顺序
+        color_frame[:, :, 1] = frame_G
+        color_frame[:, :, 0] = frame_B
+
+        writer.write(color_frame)
+
+    writer.release()
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Convert MP4 to a grayscale 3D NumPy array.")
-    parser.add_argument("input", help="Path to the input MP4 file")
-    parser.add_argument("--output", "-o", help="Path to save the output .npy file", default=None)
+    parser = argparse.ArgumentParser(description="将MP4转换为灰度三维NumPy数组。")
+    parser.add_argument("input", help="输入MP4文件路径")
+    parser.add_argument("--output", "-o", help="保存输出.npy文件路径", default=None)
     args = parser.parse_args()
 
     array = mp4_to_grayscale_array(args.input)
-    print(f"Loaded video: {args.input}")
-    print(f"Array shape: {array.shape}")
-    print(f"Array dtype: {array.dtype}")
+    print(f"已加载视频: {args.input}")
+    print(f"数组形状: {array.shape}")
+    print(f"数组dtype: {array.dtype}")
 
     if args.output:
         np.save(args.output, array)
-        print(f"Saved grayscale array to: {args.output}")
+        print(f"已将灰度数组保存至: {args.output}")
 
 
 if __name__ == "__main__":

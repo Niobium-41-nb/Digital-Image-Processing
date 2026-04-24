@@ -9,7 +9,7 @@ import argparse
 import os
 
 import numpy as np
-from scipy.ndimage import convolve
+from scipy.ndimage import convolve, maximum_filter
 
 
 def create_temporal_motion_blur(time_frames=3, height=1, width=1):
@@ -78,6 +78,29 @@ def apply_frame_convolution(array: np.ndarray, convolution: np.ndarray) -> np.nd
     
     return result
 
+def apply_diff(array:np.array) -> np.ndarray:
+    """对视频做差分处理，将后一帧的灰度图减去前一帧的灰度图
+
+    输入:
+        array: 形状为 (frames, height, width) 的三维数组
+    返回:
+        差分数组，输出形状与输入相同。
+    """
+    if not isinstance(array, np.ndarray):
+        raise TypeError("array must be a numpy ndarray")
+    if array.ndim != 3:
+        raise ValueError("array must have 3 dimensions")
+    
+    frames, height, width = array.shape
+    result = np.zeros_like(array, dtype=np.float64)
+    
+    # 计算相邻帧的差分
+    result[1:] = array[1:] - array[:-1]
+    # 第一帧设置为0
+    result[0] = 0
+    
+    return result.astype(array.dtype)
+
 def apply_peel_max(array: np.ndarray, size: int = 5) -> np.ndarray:
     """对每一帧图像执行最大池化。
 
@@ -85,27 +108,18 @@ def apply_peel_max(array: np.ndarray, size: int = 5) -> np.ndarray:
         array: 形状为 (frames, height, width) 的三维数组
         size: 池化核大小，即池化窗口为 (size, size)
     返回:
-        经过最大池化后的数组，输出形状为 (frames, height//size, width//size)。
+        经过最大池化后的数组，输出形状与输入相同。
     """
     if array.ndim != 3:
         raise ValueError("Array must be 3D with shape (frames, height, width)")
     
     frames, height, width = array.shape
-    if height % size != 0 or width % size != 0:
-        raise ValueError("Height and width must be divisible by size")
-    
-    new_height = height // size
-    new_width = width // size
-    result = np.zeros((frames, new_height, new_width), dtype=array.dtype)
+    result = np.zeros_like(array, dtype=np.float64)
     
     for f in range(frames):
-        frame = array[f]
-        # Reshape to (new_height, size, new_width, size)
-        reshaped = frame.reshape(new_height, size, new_width, size)
-        # Take max over the pooling dimensions (axis 1 and 3)
-        result[f] = reshaped.max(axis=(1, 3))
+        result[f] = maximum_filter(array[f].astype(np.float64), size=size, mode='constant', cval=0.0)
     
-    return result
+    return result.astype(array.dtype)
 
 def main():
     from .video_converter import mp4_to_grayscale_array, gray_array_to_mp4
