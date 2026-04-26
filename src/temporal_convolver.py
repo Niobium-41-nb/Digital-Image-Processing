@@ -16,17 +16,27 @@ def create_temporal_motion_blur(time_frames=3, height=1, width=1):
     """
     创建时间维度的运动模糊卷积核。
 
+    注意：只使用当前帧及过去的帧，未来的帧权重设为0。
+    这是一种因果卷积（causal convolution），确保输出只依赖于当前和过去的信息。
+
     参数:
         time_frames: 模糊的时间跨度（帧数）
         height, width: 空间维度大小（设为1表示无空间模糊）
     返回:
         卷积核数组，形状为 (time_frames, height, width)
+        前半部分为有效权重，后半部分（未来帧）为0
     """
     kernel = np.zeros((time_frames, height, width))
 
-    for t in range(time_frames):
+    # 只对当前帧及过去的帧设置权重，未来的帧保持为0
+    # 例如 time_frames=3 时：[过去, 当前, 未来] → [1, 1, 0]
+    # 例如 time_frames=5 时：[t-2, t-1, 当前, t+1, t+2] → [1, 1, 1, 0, 0]
+    effective_frames = (time_frames + 1) // 2  # 向上取整，确保至少包含当前帧
+    
+    for t in range(effective_frames):
         kernel[t, :, :] = 1.0
 
+    # 归一化，使有效权重之和为1
     kernel = kernel / kernel.sum()
     return kernel
 
