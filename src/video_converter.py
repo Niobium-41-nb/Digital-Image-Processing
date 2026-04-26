@@ -48,10 +48,17 @@ def mp4_to_grayscale_array(mp4_path: str) -> np.ndarray:
     return np.stack(frames, axis=0)
 
 
-def gray_array_to_mp4(array: np.ndarray, output_path: str, fps: float = 25.0, codec: str = "mp4v") -> None:
+def gray_array_to_mp4(array: np.ndarray, output_path: str, fps: float = 25.0, codec: str = "mp4v", output_frames_folder: bool = False) -> None:
     """将灰度三维NumPy数组写入MP4文件。
 
     输入数组形状必须为 (帧数, 高度, 宽度)。
+    
+    参数:
+        array: 输入的三维灰度数组，形状为 (帧数, 高度, 宽度)
+        output_path: 输出MP4文件路径
+        fps: 帧率（默认25.0）
+        codec: 视频编码器（默认"mp4v"）
+        output_frames_folder: 是否将所有帧输出到与视频文件同级文件夹中（默认False）
     """
     if array.ndim != 3:
         raise ValueError("输入数组必须为形状 (帧数, 高度, 宽度)")
@@ -84,11 +91,34 @@ def gray_array_to_mp4(array: np.ndarray, output_path: str, fps: float = 25.0, co
     writer.release()
     print(f"视频写入完成: {output_path}")
 
-def two_gray_array_to_GB_mp4(array_G: np.ndarray, array_B: np.ndarray, output_path: str, fps: float = 25.0, codec: str = "mp4v") -> None:
+    # 如果需要输出帧文件夹
+    if output_frames_folder:
+        frames_dir = output_path.rsplit('.', 1)[0] + '_frames'
+        os.makedirs(frames_dir, exist_ok=True)
+        print(f"开始保存帧到: {frames_dir}")
+        
+        for i in range(frame_count):
+            frame = array[i]
+            if frame.dtype != np.uint8:
+                frame = np.clip(frame, 0, 255).astype(np.uint8)
+            frame_path = os.path.join(frames_dir, f'frame_{i:05d}.png')
+            cv2.imwrite(frame_path, frame)
+        
+        print(f"帧保存完成: {frames_dir}")
+
+def two_gray_array_to_GB_mp4(array_G: np.ndarray, array_B: np.ndarray, output_path: str, fps: float = 25.0, codec: str = "mp4v", output_frames_folder: bool = False) -> None:
     """将两个灰度三维NumPy数组作为彩色视频的G和B通道写入MP4文件。
 
     输入数组形状必须为 (帧数, 高度, 宽度)。
     输出视频的R=0, G通道来自array_G, B通道来自array_B。
+    
+    参数:
+        array_G: G通道的三维灰度数组
+        array_B: B通道的三维灰度数组
+        output_path: 输出MP4文件路径
+        fps: 帧率（默认25.0）
+        codec: 视频编码器（默认"mp4v"）
+        output_frames_folder: 是否将所有帧输出到与视频文件同级文件夹中（默认False）
     """
     if array_G.ndim != 3 or array_B.ndim != 3:
         raise ValueError("输入数组必须为形状 (帧数, 高度, 宽度)")
@@ -129,11 +159,43 @@ def two_gray_array_to_GB_mp4(array_G: np.ndarray, array_B: np.ndarray, output_pa
     writer.release()
     print(f"GB通道视频写入完成: {output_path}")
 
-def three_gray_array_to_RGB_mp4(array_R: np.ndarray, array_G: np.ndarray, array_B: np.ndarray, output_path: str, fps: float = 25.0, codec: str = "mp4v") -> None:
+    # 如果需要输出帧文件夹
+    if output_frames_folder:
+        frames_dir = output_path.rsplit('.', 1)[0] + '_frames'
+        os.makedirs(frames_dir, exist_ok=True)
+        print(f"开始保存帧到: {frames_dir}")
+        
+        for i in range(frame_count):
+            frame_G = array_G[i]
+            frame_B = array_B[i]
+            if frame_G.dtype != np.uint8:
+                frame_G = np.clip(frame_G, 0, 255).astype(np.uint8)
+            if frame_B.dtype != np.uint8:
+                frame_B = np.clip(frame_B, 0, 255).astype(np.uint8)
+            
+            color_frame = np.zeros((height, width, 3), dtype=np.uint8)
+            color_frame[:, :, 1] = frame_G
+            color_frame[:, :, 2] = frame_B
+            
+            frame_path = os.path.join(frames_dir, f'frame_{i:05d}.png')
+            cv2.imwrite(frame_path, color_frame)
+        
+        print(f"帧保存完成: {frames_dir}")
+
+def three_gray_array_to_RGB_mp4(array_R: np.ndarray, array_G: np.ndarray, array_B: np.ndarray, output_path: str, fps: float = 25.0, codec: str = "mp4v", output_frames_folder: bool = False) -> None:
     """将三个灰度三维NumPy数组作为彩色视频的RGB通道写入MP4文件。
 
     输入数组形状必须为 (帧数, 高度, 宽度)。
     输出视频的R通道来自array_R, G通道来自array_G, B通道来自array_B。
+    
+    参数:
+        array_R: R通道的三维灰度数组
+        array_G: G通道的三维灰度数组
+        array_B: B通道的三维灰度数组
+        output_path: 输出MP4文件路径
+        fps: 帧率（默认25.0）
+        codec: 视频编码器（默认"mp4v"）
+        output_frames_folder: 是否将所有帧输出到与视频文件同级文件夹中（默认False）
     """
     if array_R.ndim != 3 or array_G.ndim != 3 or array_B.ndim != 3:
         raise ValueError("输入数组必须为形状 (帧数, 高度, 宽度)")
@@ -177,6 +239,33 @@ def three_gray_array_to_RGB_mp4(array_R: np.ndarray, array_G: np.ndarray, array_
 
     writer.release()
     print(f"RGB通道视频写入完成: {output_path}")
+
+    # 如果需要输出帧文件夹
+    if output_frames_folder:
+        frames_dir = output_path.rsplit('.', 1)[0] + '_frames'
+        os.makedirs(frames_dir, exist_ok=True)
+        print(f"开始保存帧到: {frames_dir}")
+        
+        for i in range(frame_count):
+            frame_R = array_R[i]
+            frame_G = array_G[i]
+            frame_B = array_B[i]
+            if frame_R.dtype != np.uint8:
+                frame_R = np.clip(frame_R, 0, 255).astype(np.uint8)
+            if frame_G.dtype != np.uint8:
+                frame_G = np.clip(frame_G, 0, 255).astype(np.uint8)
+            if frame_B.dtype != np.uint8:
+                frame_B = np.clip(frame_B, 0, 255).astype(np.uint8)
+            
+            color_frame = np.zeros((height, width, 3), dtype=np.uint8)
+            color_frame[:, :, 2] = frame_R
+            color_frame[:, :, 1] = frame_G
+            color_frame[:, :, 0] = frame_B
+            
+            frame_path = os.path.join(frames_dir, f'frame_{i:05d}.png')
+            cv2.imwrite(frame_path, color_frame)
+        
+        print(f"帧保存完成: {frames_dir}")
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="将MP4转换为灰度三维NumPy数组。")
