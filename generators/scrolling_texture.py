@@ -115,4 +115,10 @@ def generate_scrolling_texture_video(filename, width=1280, height=720, square_si
 
 
 if __name__ == "__main__":
-    generate_scrolling_texture_video('kinetic_boundary_waterfall.mp4', square_size=4)
+    import os
+    PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    DATA_DIR = os.path.join(PROJECT_ROOT, 'data')
+    os.makedirs(DATA_DIR, exist_ok=True)
+    generate_scrolling_texture_video(
+        os.path.join(DATA_DIR, 'kinetic_boundary_waterfall.mp4'),
+        square_size=4)

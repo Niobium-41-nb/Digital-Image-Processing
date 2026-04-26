@@ -576,28 +576,32 @@ def _save_frames_figure_eight(filename, width, height, square_size, num_frames,
 
 
 if __name__ == "__main__":
-    # 生成所有类型的复杂运动视频
-    os.makedirs("data", exist_ok=True)
+    # 始终把视频输出到"项目根目录/data/"，与 generators/ 同级，
+    # 不受当前工作目录（在 generators/ 下还是项目根下运行）影响。
+    PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    DATA_DIR = os.path.join(PROJECT_ROOT, 'data')
+    os.makedirs(DATA_DIR, exist_ok=True)
+    print(f"输出目录: {DATA_DIR}")
 
     print("=" * 60)
     print("生成斜向运动视频...")
-    generate_diagonal_motion_video('data/diagonal_motion.mp4', square_size=4)
+    generate_diagonal_motion_video(os.path.join(DATA_DIR, 'diagonal_motion.mp4'), square_size=4)
 
     print("=" * 60)
     print("生成圆周运动视频...")
-    generate_circular_motion_video('data/circular_motion.mp4', square_size=4)
+    generate_circular_motion_video(os.path.join(DATA_DIR, 'circular_motion.mp4'), square_size=4)
 
     print("=" * 60)
     print("生成螺旋运动视频...")
-    generate_spiral_motion_video('data/spiral_motion.mp4', square_size=4)
+    generate_spiral_motion_video(os.path.join(DATA_DIR, 'spiral_motion.mp4'), square_size=4)
 
     print("=" * 60)
     print("生成缩放脉冲运动视频...")
-    generate_pulsing_zoom_video('data/pulsing_zoom.mp4', square_size=4)
+    generate_pulsing_zoom_video(os.path.join(DATA_DIR, 'pulsing_zoom.mp4'), square_size=4)
 
     print("=" * 60)
     print("生成8字形运动视频...")
-    generate_figure_eight_motion_video('data/figure_eight_motion.mp4', square_size=4)
+    generate_figure_eight_motion_video(os.path.join(DATA_DIR, 'figure_eight_motion.mp4'), square_size=4)
 
     print("=" * 60)
     print("所有复杂运动视频生成完成！")
