@@ -339,128 +339,6 @@ def _save_frames_spiral(filename, width, height, square_size, num_frames,
     print(f"帧保存完成: {frames_dir}")
 
 
-def generate_pulsing_zoom_video(filename, width=1280, height=720, square_size=4,
-                                 fps=30, duration=15, output_frames_folder=False):
-    """
-    生成缩放脉冲运动视频。
-
-    前景方块周期性放大和缩小（脉冲缩放），同时背景纹理沿径向向外扩散。
-    缩放运动涉及空间尺度的变化，运动方向为径向（从中心向外或向内），
-    用于测试尺度变化下的边缘检测响应。
-
-    参数:
-        filename: 输出视频文件路径
-        width: 视频宽度（默认1280）
-        height: 视频高度（默认720）
-        square_size: 方块大小，影响纹理颗粒度（默认4）
-        fps: 帧率（默认30）
-        duration: 视频时长，单位秒（默认15）
-        output_frames_folder: 是否将所有帧输出到与视频文件同级文件夹中（默认False）
-    """
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    out = cv2.VideoWriter(filename, fourcc, fps, (width, height))
-    num_frames = fps * duration
-
-    width = (width // square_size) * square_size
-    height = (height // square_size) * square_size
-
-    bg_cols = width // square_size
-    bg_rows = height // square_size
-    bg_small = np.random.choice([0, 255], size=(bg_rows, bg_cols)).astype(np.uint8)
-
-    # 前景基础纹理（固定大小）
-    base_fg_cols = 60
-    base_fg_rows = 60
-    fg_small = np.random.choice([0, 255], size=(base_fg_rows, base_fg_cols)).astype(np.uint8)
-
-    # 脉冲参数
-    min_scale = 0.3   # 最小缩放比例
-    max_scale = 1.5   # 最大缩放比例
-    pulse_cycles = 4  # 脉冲周期数
-
-    print(f"开始渲染缩放脉冲运动视频: {filename}")
-    print(f"前景脉冲缩放，{pulse_cycles}个周期，缩放范围[{min_scale}, {max_scale}]")
-
-    for i in range(num_frames):
-        # 背景径向滚动
-        bg_rolled = np.roll(bg_small, shift=i, axis=1)
-        bg_frame = np.repeat(np.repeat(bg_rolled, square_size, axis=0), square_size, axis=1)
-        frame_gray = bg_frame.copy()
-
-        # 计算当前缩放比例（正弦波脉冲）
-        phase = (2 * math.pi * pulse_cycles * i) / num_frames
-        scale = min_scale + (max_scale - min_scale) * (0.5 + 0.5 * math.sin(phase))
-
-        # 根据缩放比例计算实际前景大小
-        current_fg_cols = max(1, int(base_fg_cols * scale))
-        current_fg_rows = max(1, int(base_fg_rows * scale))
-
-        # 缩放前景纹理（使用最近邻插值保持方块效果）
-        fg_scaled = cv2.resize(fg_small, (current_fg_cols, current_fg_rows),
-                               interpolation=cv2.INTER_NEAREST)
-        fg_block = np.repeat(np.repeat(fg_scaled, square_size, axis=0), square_size, axis=1)
-
-        current_rect_w = current_fg_cols * square_size
-        current_rect_h = current_fg_rows * square_size
-
-        # 居中放置
-        rect_x = (width - current_rect_w) // 2
-        rect_y = (height - current_rect_h) // 2
-
-        frame_gray[rect_y: rect_y + current_rect_h, rect_x: rect_x + current_rect_w] = fg_block
-
-        frame_bgr = cv2.cvtColor(frame_gray, cv2.COLOR_GRAY2BGR)
-        out.write(frame_bgr)
-
-        if i % 30 == 0:
-            print(f"已生成帧: {i}/{num_frames}, 缩放比例: {scale:.2f}")
-
-    out.release()
-    print(f"缩放脉冲运动视频生成完成: {filename}")
-
-    if output_frames_folder:
-        _save_frames_pulsing(filename, width, height, square_size, num_frames,
-                             bg_rows, bg_cols, base_fg_rows, base_fg_cols,
-                             fg_small, min_scale, max_scale, pulse_cycles)
-
-
-def _save_frames_pulsing(filename, width, height, square_size, num_frames,
-                          bg_rows, bg_cols, base_fg_rows, base_fg_cols,
-                          fg_small, min_scale, max_scale, pulse_cycles):
-    """辅助函数：保存缩放脉冲视频的帧"""
-    frames_dir = filename.rsplit('.', 1)[0] + '_frames'
-    os.makedirs(frames_dir, exist_ok=True)
-    print(f"开始保存帧到: {frames_dir}")
-
-    bg_small = np.random.choice([0, 255], size=(bg_rows, bg_cols)).astype(np.uint8)
-
-    for i in range(num_frames):
-        bg_rolled = np.roll(bg_small, shift=i, axis=1)
-        bg_frame = np.repeat(np.repeat(bg_rolled, square_size, axis=0), square_size, axis=1)
-        frame_gray = bg_frame.copy()
-
-        phase = (2 * math.pi * pulse_cycles * i) / num_frames
-        scale = min_scale + (max_scale - min_scale) * (0.5 + 0.5 * math.sin(phase))
-
-        current_fg_cols = max(1, int(base_fg_cols * scale))
-        current_fg_rows = max(1, int(base_fg_rows * scale))
-
-        fg_scaled = cv2.resize(fg_small, (current_fg_cols, current_fg_rows),
-                               interpolation=cv2.INTER_NEAREST)
-        fg_block = np.repeat(np.repeat(fg_scaled, square_size, axis=0), square_size, axis=1)
-
-        current_rect_w = current_fg_cols * square_size
-        current_rect_h = current_fg_rows * square_size
-        rect_x = (width - current_rect_w) // 2
-        rect_y = (height - current_rect_h) // 2
-
-        frame_gray[rect_y: rect_y + current_rect_h, rect_x: rect_x + current_rect_w] = fg_block
-
-        frame_path = os.path.join(frames_dir, f'frame_{i:05d}.png')
-        cv2.imwrite(frame_path, frame_gray)
-
-    print(f"帧保存完成: {frames_dir}")
-
 
 def generate_figure_eight_motion_video(filename, width=1280, height=720, square_size=4,
                                         fps=30, duration=15, output_frames_folder=False):
@@ -590,10 +468,6 @@ if __name__ == "__main__":
     print("=" * 60)
     print("生成螺旋运动视频...")
     generate_spiral_motion_video('data/spiral_motion.mp4', square_size=4)
-
-    print("=" * 60)
-    print("生成缩放脉冲运动视频...")
-    generate_pulsing_zoom_video('data/pulsing_zoom.mp4', square_size=4)
 
     print("=" * 60)
     print("生成8字形运动视频...")

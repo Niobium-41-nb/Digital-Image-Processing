@@ -11,7 +11,6 @@ from .complex_motion import (
     generate_diagonal_motion_video,
     generate_circular_motion_video,
     generate_spiral_motion_video,
-    generate_pulsing_zoom_video,
     generate_figure_eight_motion_video,
 )
 
@@ -22,6 +21,5 @@ __all__ = [
     'generate_diagonal_motion_video',
     'generate_circular_motion_video',
     'generate_spiral_motion_video',
-    'generate_pulsing_zoom_video',
     'generate_figure_eight_motion_video',
 ]

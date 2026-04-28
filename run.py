@@ -5,253 +5,186 @@
 
 本程序实现了一套完整的视频运动分析与边缘检测流水线，主要流程如下：
 
-  1. 生成阶段
-     调用 generators/complex_motion.py 中的生成器，创建多种复杂运动模式
-     的测试视频（斜向、圆周、螺旋、缩放脉冲、8字形运动）。
+  1. 生成阶段 —— 创建多种复杂运动模式的测试视频
+  2. GUI 选择阶段 —— 弹出窗口选择要处理的视频文件
+  3. 处理阶段：
+        a) 图像放大 —— 将每帧图像放大 SCALE_FACTOR 倍
+        b) 时间维度运动模糊 —— 三维卷积核沿时间轴平滑
+        c) 空间边缘检测 —— 水平/垂直双方向 Prewitt 卷积核
+        d) 帧间差分 —— 相邻帧差分绝对值，反映运动强度
+        e) 最大池化还原 —— 将图像大小还原到原始尺寸
+        f) RGB 三通道融合 —— R=水平边缘, G=垂直边缘, B=帧间差分
+  4. 三个处理副本：
+        - 副本A：原始时间-空间结构 (T, H, W)
+        - 副本B：转置Y轴与时间轴 (H, T, W)
+        - 副本C：转置X轴与时间轴 (W, H, T)
 
-  2. 处理阶段
-     对每个视频执行以下联合卷积处理：
-       a) 时间维度运动模糊 —— 使用三维卷积核沿时间轴平滑，模拟运动拖影
-       b) 空间边缘检测 —— 对模糊后的视频逐帧应用 0 度 / 60 度 / 120 度
-          三个方向的 Prewitt 罗盘卷积核，检测不同方向的边缘
-       c) 多通道融合 —— 将三方向边缘检测结果映射到 RGB 彩色通道
-
-  3. 内存优化
-     - 使用 float32 替代 float64，减少 50% 内存占用
-     - 逐帧处理边缘检测，避免一次性加载所有结果
-     - 主动释放中间结果并调用垃圾回收
+配置方式：
+  卷积核大小、放大倍数等参数通过 .env 文件配置。
+  视频文件通过 GUI 窗口选择。
 
 依赖模块：
-  - src/video_converter.py    : MP4 与 NumPy 数组的相互转换
-  - src/temporal_convolver.py : 三维卷积核心算法
-  - src/edge_process.py       : 方向边缘检测卷积核
-  - generators/complex_motion.py : 复杂运动模式视频生成器
+  - src/config.py           : 配置加载
+  - src/video_generator.py  : 视频生成
+  - src/video_selector.py   : GUI 视频选择
+  - src/video_converter.py  : MP4 与 NumPy 数组转换
+  - src/temporal_convolver.py : 三维卷积与图像放大
+  - src/edge_process.py     : 方向边缘检测与流水线处理
 
 作者：数字图像处理课程项目
 ============================================================
 """
 
-import os
 import gc
+import os
+import shutil
 
 import numpy as np
-from scipy.ndimage import convolve
 
-# ---------- 导入视频转换工具 ----------
-# mp4_to_grayscale_array  : 读取 MP4 → 灰度三维数组 (frames, H, W)
-# gray_array_to_mp4       : 灰度三维数组 → MP4
-# two_gray_array_to_GB_mp4 : 两个灰度数组 → 彩色 MP4（G/B 通道）
-# three_gray_array_to_RGB_mp4 : 三个灰度数组 → 彩色 MP4（R/G/B 通道）
-from src.video_converter import mp4_to_grayscale_array, gray_array_to_mp4, two_gray_array_to_GB_mp4, three_gray_array_to_RGB_mp4
+from src.config import get_config
+from src.video_generator import generate_all_test_videos
+from src.video_selector import select_video_simple
+from src.video_converter import mp4_to_grayscale_array
+from src.temporal_convolver import (
+    create_temporal_motion_blur, scale_and_convolve, apply_temporal_convolution
+)
+from src.edge_process import process_motion_blurred_array
 
-# ---------- 导入时间-空间卷积处理工具 ----------
-# create_temporal_motion_blur : 创建时间维度的运动模糊卷积核
-# apply_temporal_convolution  : 对三维数组执行三维卷积（时间+空间）
-from src.temporal_convolver import create_temporal_motion_blur, apply_temporal_convolution
+# ============================================================
+# 加载配置
+# ============================================================
+config = get_config()
+CONVOLUTION_SIZE = config['CONVOLUTION_SIZE']
+SCALE_FACTOR = config['SCALE_FACTOR']
+POOL_SIZE = config['POOL_SIZE']
 
-# ---------- 导入边缘处理专用工具 ----------
-# CONVOLUTION_0DEG / _60DEG / _120DEG : 三方向 Prewitt 罗盘卷积核
-from src.edge_process import (
-    CONVOLUTION_0DEG,
-    CONVOLUTION_60DEG,
-    CONVOLUTION_120DEG,
+# ============================================================
+# 第一步：生成测试视频
+# ============================================================
+generate_all_test_videos()
+
+# ============================================================
+# 第二步：GUI 选择视频与参数
+# ============================================================
+print("\n正在打开视频选择窗口...")
+selected_video_name, selected_video_path, gui_conv_min, gui_conv_max, \
+    enable_transposed, enable_transposed_x, \
+    enable_scale, gui_scale_factor, \
+    enable_diff = select_video_simple(
+    "选择待处理的视频", default_conv_size=CONVOLUTION_SIZE,
+    default_scale_factor=SCALE_FACTOR
 )
 
-# ============================================================
-# 第一步：生成所有复杂运动模式的测试视频
-# ============================================================
+if selected_video_name is None:
+    print("\n用户取消了视频选择，程序退出。")
+    exit(0)
 
-# 导入复杂运动模式视频生成器
-from generators.complex_motion import (
-    generate_diagonal_motion_video,      # 斜向运动
-    generate_circular_motion_video,      # 圆周运动
-    generate_spiral_motion_video,        # 螺旋运动
-    generate_pulsing_zoom_video,         # 缩放脉冲运动
-    generate_figure_eight_motion_video,  # 8字形运动
-)
-
-# 确保 data/ 目录存在，用于存放生成的测试视频
-os.makedirs("data", exist_ok=True)
-
-print("=" * 70)
-print("开始生成复杂运动模式测试视频...")
-print("=" * 70)
-
-# 定义待生成的测试视频列表
-# 键为运动模式名称，值为输出文件路径
-test_videos = {
-    "diagonal": "data/diagonal_motion.mp4",          # 斜向运动
-    "circular": "data/circular_motion.mp4",          # 圆周运动
-    "spiral": "data/spiral_motion.mp4",              # 螺旋运动
-    "pulsing": "data/pulsing_zoom.mp4",              # 缩放脉冲
-    "figure_eight": "data/figure_eight_motion.mp4",  # 8字形运动
-}
-
-# 遍历所有运动模式，若视频文件不存在则调用对应的生成器创建
-for name, path in test_videos.items():
-    if not os.path.exists(path):
-        print(f"\n生成 {name} 运动视频...")
-        if name == "diagonal":
-            generate_diagonal_motion_video(path, square_size=4)
-        elif name == "circular":
-            generate_circular_motion_video(path, square_size=4)
-        elif name == "spiral":
-            generate_spiral_motion_video(path, square_size=4)
-        elif name == "pulsing":
-            generate_pulsing_zoom_video(path, square_size=4)
-        elif name == "figure_eight":
-            generate_figure_eight_motion_video(path, square_size=4)
-    else:
-        print(f"{path} 已存在，跳过生成")
-
-# ============================================================
-# 第二步：对所有视频进行时间-空间联合卷积处理
-# ============================================================
-
-# 所有待处理的视频列表（包括原有的双滚动视频）
-# 双滚动视频由 generators/dual_scrolling.py 生成（需提前手动运行）
-video_sources = {
-    "dual_scroll": "data/dual_scroll_background_right_foreground_down.mp4",
-    "diagonal": "data/diagonal_motion.mp4",
-    "circular": "data/circular_motion.mp4",
-    "spiral": "data/spiral_motion.mp4",
-    "pulsing": "data/pulsing_zoom.mp4",
-    "figure_eight": "data/figure_eight_motion.mp4",
-}
-
-# 显示可选视频列表
-print("\n" + "=" * 50)
-print("可选视频列表：")
-print("=" * 50)
-for idx, (name, path) in enumerate(video_sources.items(), 1):
-    exists = "✓" if os.path.exists(path) else "✗"
-    print(f"  {idx}. {name:15} {exists}")
-print("=" * 50)
-
-# 让用户选择要处理的视频
-while True:
-    try:
-        video_choice = int(input("\n请选择要处理的视频编号 (1-6): "))
-        if 1 <= video_choice <= len(video_sources):
-            break
-        print("输入无效，请输入 1-6 之间的数字")
-    except ValueError:
-        print("输入无效，请输入数字")
-
-# 获取用户选择的视频
-selected_video_name = list(video_sources.keys())[video_choice - 1]
-selected_video_path = video_sources[selected_video_name]
-
-# 检查视频是否存在
-if not os.path.exists(selected_video_path):
-    print(f"\n[错误] {selected_video_path} 不存在，请先生成该视频")
-    exit(1)
+# 确定实际使用的放大倍数和池化大小
+if enable_scale:
+    actual_scale_factor = gui_scale_factor
+    actual_pool_size = gui_scale_factor  # 池化大小跟随放大倍数
+else:
+    actual_scale_factor = 1  # 不放大
+    actual_pool_size = 1  # 不放大时不进行池化（pool_size=1 表示不做降采样）
 
 print(f"\n已选择视频: {selected_video_name}")
+print(f"视频路径: {selected_video_path}")
 
-# 让用户选择时间维度模糊核的帧数跨度
-print("\n" + "=" * 50)
-print("可选卷积核大小（时间维度模糊核的帧数跨度）：")
-print("=" * 50)
-print("  1. size=2  (轻度模糊)")
-print("  2. size=3  (中度模糊)")
-print("  3. size=4  (较强模糊)")
-print("  4. size=5  (强模糊)")
-print("  5. size=6  (极强模糊)")
-print("=" * 50)
+# 确定卷积核大小（GUI 区间选择优先）
+convolution_sizes = list(range(gui_conv_min, gui_conv_max + 1))
 
-while True:
-    try:
-        size_choice = int(input("\n请选择卷积核大小编号 (1-6): "))
-        if 1 <= size_choice <= 5:
-            break
-        print("输入无效，请输入 1-6 之间的数字")
-    except ValueError:
-        print("输入无效，请输入数字")
+print(f"\n已选择卷积核大小区间: {gui_conv_min} ~ {gui_conv_max}")
+print(f"将依次处理: {convolution_sizes}")
+print(f"图像放大: {'启用' if enable_scale else '禁用'} (倍数: {actual_scale_factor}x)")
+print(f"池化大小: {actual_pool_size}x{actual_pool_size}")
+print(f"副本B (Y-T转置): {'启用' if enable_transposed else '禁用'}")
+print(f"副本C (X-T转置): {'启用' if enable_transposed_x else '禁用'}")
+print(f"帧间差分: {'启用' if enable_diff else '禁用'}")
 
-# 确定要使用的卷积核大小列表
-if size_choice == 6:
-    convolution_sizes = [2, 3, 4, 5, 6]
-else:
-    convolution_sizes = [size_choice + 1]  # 1->2, 2->3, etc.
-
-print(f"\n已选择卷积核大小: {convolution_sizes}")
-print(f"\n{'=' * 70}")
-print(f"开始处理视频: {selected_video_name}")
-print(f"{'=' * 70}")
-
-# 读取视频为灰度三维数组
-# arr 形状: (帧数, 高度, 宽度)，数据类型 uint8 (0~255)
+# 读取视频
 arr = mp4_to_grayscale_array(selected_video_path)
 
-# 遍历用户选择的卷积核大小
+# ========== 将原始视频复制到 output 目录 ==========
+video_output_dir = f"output/{selected_video_name}"
+os.makedirs(video_output_dir, exist_ok=True)
+original_video_output_path = os.path.join(video_output_dir, f"{selected_video_name}.mp4")
+if not os.path.exists(original_video_output_path):
+    shutil.copy2(selected_video_path, original_video_output_path)
+    print(f"\n原始视频已复制到: {original_video_output_path}")
+else:
+    print(f"\n原始视频已存在: {original_video_output_path}，跳过复制")
+
+# 定义处理函数：根据是否放大选择不同路径
+def process_with_or_without_scale(input_arr, scale_factor, convolution_kernel):
+    """根据 scale_factor 决定是否放大后卷积，或直接卷积"""
+    if scale_factor > 1:
+        return scale_and_convolve(input_arr, scale_factor, convolution_kernel)
+    else:
+        return apply_temporal_convolution(input_arr, convolution_kernel)
+
+
+# 遍历卷积核大小
 for convolution_size in convolution_sizes:
-    # 创建输出目录：output/<视频名称>/<卷积核大小>/
     output_dir = f"output/{selected_video_name}/{convolution_size}"
     os.makedirs(output_dir, exist_ok=True)
 
-    print(f"\n--- 卷积核大小: {convolution_size} ---")
+    print(f"\n{'=' * 70}")
+    print(f"卷积核大小: {convolution_size} | 放大倍数: {actual_scale_factor}x | 池化大小: {actual_pool_size}x{actual_pool_size}")
+    print(f"{'=' * 70}")
 
-    # ========== (a) 创建时间维度运动模糊卷积核 ==========
-    # 生成一个三维卷积核，形状为 (convolution_size, convolution_size, convolution_size)
-    # 三个维度分别对应：时间帧数、空间高度、空间宽度
-    # 由于 height=width=convolution_size，该核同时具有时间模糊和轻微空间模糊效果
-    # 核内所有元素值相等，归一化后为 1/(convolution_size^3)
+    # 创建时间维度运动模糊卷积核
     convolution = create_temporal_motion_blur(convolution_size, convolution_size, convolution_size)
 
-    # ========== (b) 执行时间维度卷积（运动模糊） ==========
-    # 对原始视频沿时间轴做加权平均，模拟运动拖影效果
-    # 运动速度越快/卷积核越大，模糊效果越明显
-    processed_arr = apply_temporal_convolution(arr, convolution)
-
-    # ========== (c) 三方向空间边缘检测 ==========
-    # 对运动模糊后的视频逐帧应用 0 度 / 60 度 / 120 度边缘检测卷积核
-    # 三个方向的结果将分别映射到 RGB 的 R、G、B 通道
-    # 使用动态内存分配，逐帧处理以减少内存占用
-    
-    # 获取视频帧数
-    num_frames = processed_arr.shape[0]
-    height, width = processed_arr.shape[1], processed_arr.shape[2]
-    
-    # 预分配结果数组（使用 float32 减少内存）
-    result_0deg = np.zeros((num_frames, height, width), dtype=np.float32)
-    result_60deg = np.zeros((num_frames, height, width), dtype=np.float32)
-    result_120deg = np.zeros((num_frames, height, width), dtype=np.float32)
-    
-    print(f"开始三方向边缘检测，共 {num_frames} 帧")
-    for i in range(num_frames):
-        frame = processed_arr[i].astype(np.float32)
-        result_0deg[i] = convolve(frame, CONVOLUTION_0DEG, mode='constant', cval=0.0)
-        result_60deg[i] = convolve(frame, CONVOLUTION_60DEG, mode='constant', cval=0.0)
-        result_120deg[i] = convolve(frame, CONVOLUTION_120DEG, mode='constant', cval=0.0)
-        
-        if (i + 1) % 30 == 0:
-            print(f"已处理帧: {i + 1}/{num_frames}")
-    print("边缘检测完成")
-
-    # ========== (d) 保存各处理结果为独立灰度视频 ==========
-    # 保存运动模糊后的视频
-    gray_array_to_mp4(processed_arr, f"{output_dir}/output.mp4")
-    # 保存 0 度方向边缘检测结果
-    gray_array_to_mp4(result_0deg, f"{output_dir}/output_edge_0deg.mp4")
-    # 保存 60 度方向边缘检测结果
-    gray_array_to_mp4(result_60deg, f"{output_dir}/output_edge_60deg.mp4")
-    # 保存 120 度方向边缘检测结果
-    gray_array_to_mp4(result_120deg, f"{output_dir}/output_edge_120deg.mp4")
-
-    # ========== (e) RGB 三通道融合 ==========
-    # 将三方向边缘检测结果直接映射到 RGB 彩色通道：
-    #   R 通道 ← 0 度方向边缘检测
-    #   G 通道 ← 60 度方向边缘检测
-    #   B 通道 ← 120 度方向边缘检测
-    three_gray_array_to_RGB_mp4(
-        result_0deg, result_60deg, result_120deg,
-        f"{output_dir}/output_RGB.mp4"
+    # ========== 副本A：原始时间-空间结构 ==========
+    print(f"\n>>> 处理副本A（未转置）- 原始时间-空间结构")
+    processed_arr = process_with_or_without_scale(arr, actual_scale_factor, convolution)
+    process_motion_blurred_array(
+        processed_arr, output_dir, suffix="",
+        pool_size=actual_pool_size,
+        enable_diff=enable_diff
     )
 
-    # 主动释放中间结果内存
-    del result_0deg, result_60deg, result_120deg
+    # 释放副本A内存（后续不再需要）
+    del processed_arr
     gc.collect()
+
+    # ========== 副本B：转置Y轴与时间轴（可选） ==========
+    if enable_transposed:
+        print(f"\n>>> 处理副本B（先转置Y轴与时间轴，再运动模糊）")
+        # 原始形状: (T, H, W) → 转置后: (H, T, W)
+        transposed_arr = np.transpose(arr, axes=(1, 0, 2))
+        print(f"转置前形状: {arr.shape} → 转置后形状: {transposed_arr.shape}")
+
+        transposed_processed = process_with_or_without_scale(transposed_arr, actual_scale_factor, convolution)
+        process_motion_blurred_array(
+            transposed_processed, output_dir, suffix="_transposed",
+            pool_size=actual_pool_size,
+            enable_diff=enable_diff
+        )
+
+        del transposed_arr, transposed_processed
+        gc.collect()
+    else:
+        print(f"\n>>> 跳过副本B（用户未选择）")
+
+    # ========== 副本C：转置X轴与时间轴（可选） ==========
+    if enable_transposed_x:
+        print(f"\n>>> 处理副本C（先转置X轴与时间轴，再运动模糊）")
+        # 原始形状: (T, H, W) → 转置后: (W, H, T)
+        transposed_x_arr = np.transpose(arr, axes=(2, 1, 0))
+        print(f"转置前形状: {arr.shape} → 转置后形状: {transposed_x_arr.shape}")
+
+        transposed_x_processed = process_with_or_without_scale(transposed_x_arr, actual_scale_factor, convolution)
+        process_motion_blurred_array(
+            transposed_x_processed, output_dir, suffix="_transposed_x",
+            pool_size=actual_pool_size,
+            enable_diff=enable_diff
+        )
+
+        del transposed_x_arr, transposed_x_processed
+        gc.collect()
+    else:
+        print(f"\n>>> 跳过副本C（用户未选择）")
 
 # ========== 处理完成 ==========
 print(f"\n{'=' * 70}")

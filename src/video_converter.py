@@ -10,6 +10,8 @@ import os
 import cv2
 import numpy as np
 
+from src.progress_bar import update_progress, finish_progress
+
 
 def mp4_to_grayscale_array(mp4_path: str) -> np.ndarray:
     """读取MP4文件并返回灰度三维NumPy数组。
@@ -37,10 +39,10 @@ def mp4_to_grayscale_array(mp4_path: str) -> np.ndarray:
         frames.append(gray)
         frame_idx += 1
 
-        if frame_idx % 30 == 0:
-            print(f"已读取帧: {frame_idx}/{total_frames}")
+        update_progress(frame_idx, total_frames, prefix="读取视频")
 
     cap.release()
+    finish_progress(prefix="读取视频")
 
     if not frames:
         return np.empty((0, 0, 0), dtype=np.uint8)
@@ -85,10 +87,10 @@ def gray_array_to_mp4(array: np.ndarray, output_path: str, fps: float = 25.0, co
 
         writer.write(frame)
 
-        if (i + 1) % 30 == 0:
-            print(f"已写入帧: {i + 1}/{frame_count}")
+        update_progress(i + 1, frame_count, prefix="写入视频")
 
     writer.release()
+    finish_progress(prefix="写入视频")
     print(f"视频写入完成: {output_path}")
 
     # 如果需要输出帧文件夹
@@ -153,10 +155,10 @@ def two_gray_array_to_GB_mp4(array_G: np.ndarray, array_B: np.ndarray, output_pa
 
         writer.write(color_frame)
 
-        if (i + 1) % 30 == 0:
-            print(f"已写入帧: {i + 1}/{frame_count}")
+        update_progress(i + 1, frame_count, prefix="写入GB通道")
 
     writer.release()
+    finish_progress(prefix="写入GB通道")
     print(f"GB通道视频写入完成: {output_path}")
 
     # 如果需要输出帧文件夹
@@ -181,6 +183,83 @@ def two_gray_array_to_GB_mp4(array_G: np.ndarray, array_B: np.ndarray, output_pa
             cv2.imwrite(frame_path, color_frame)
         
         print(f"帧保存完成: {frames_dir}")
+
+def two_gray_array_to_RG_mp4(array_R: np.ndarray, array_G: np.ndarray, output_path: str, fps: float = 25.0, codec: str = "mp4v", output_frames_folder: bool = False) -> None:
+    """将两个灰度三维NumPy数组作为彩色视频的R和G通道写入MP4文件。
+
+    输入数组形状必须为 (帧数, 高度, 宽度)。
+    输出视频的R通道来自array_R, G通道来自array_G, B=0。
+    
+    参数:
+        array_R: R通道的三维灰度数组
+        array_G: G通道的三维灰度数组
+        output_path: 输出MP4文件路径
+        fps: 帧率（默认25.0）
+        codec: 视频编码器（默认"mp4v"）
+        output_frames_folder: 是否将所有帧输出到与视频文件同级文件夹中（默认False）
+    """
+    if array_R.ndim != 3 or array_G.ndim != 3:
+        raise ValueError("输入数组必须为形状 (帧数, 高度, 宽度)")
+    if array_R.shape != array_G.shape:
+        raise ValueError("两个输入数组必须具有相同的形状")
+
+    frame_count, height, width = array_R.shape
+    if frame_count == 0:
+        raise ValueError("输入数组包含零帧")
+
+    fourcc = cv2.VideoWriter_fourcc(*codec)
+    writer = cv2.VideoWriter(output_path, fourcc, fps, (width, height), isColor=True)
+    if not writer.isOpened():
+        raise RuntimeError(f"无法打开视频写入器进行输出: {output_path}")
+
+    print(f"开始写入RG通道视频，共 {frame_count} 帧")
+    for i in range(frame_count):
+        frame_R = array_R[i]
+        frame_G = array_G[i]
+        if frame_R.shape != (height, width) or frame_G.shape != (height, width):
+            raise ValueError(
+                f"所有帧必须为 (高度, 宽度) 的形状; 第 {i} 帧的形状为 {frame_R.shape} 和 {frame_G.shape}"
+            )
+
+        color_frame = np.zeros((height, width, 3), dtype=np.uint8)
+        if frame_R.dtype != np.uint8:
+            frame_R = np.clip(frame_R, 0, 255).astype(np.uint8)
+        if frame_G.dtype != np.uint8:
+            frame_G = np.clip(frame_G, 0, 255).astype(np.uint8)
+        color_frame[:, :, 2] = frame_R  # OpenCV 使用 BGR 格式，R 通道在 index 2
+        color_frame[:, :, 1] = frame_G  # G 通道在 index 1
+
+        writer.write(color_frame)
+
+        update_progress(i + 1, frame_count, prefix="写入RG通道")
+
+    writer.release()
+    finish_progress(prefix="写入RG通道")
+    print(f"RG通道视频写入完成: {output_path}")
+
+    # 如果需要输出帧文件夹
+    if output_frames_folder:
+        frames_dir = output_path.rsplit('.', 1)[0] + '_frames'
+        os.makedirs(frames_dir, exist_ok=True)
+        print(f"开始保存帧到: {frames_dir}")
+        
+        for i in range(frame_count):
+            frame_R = array_R[i]
+            frame_G = array_G[i]
+            if frame_R.dtype != np.uint8:
+                frame_R = np.clip(frame_R, 0, 255).astype(np.uint8)
+            if frame_G.dtype != np.uint8:
+                frame_G = np.clip(frame_G, 0, 255).astype(np.uint8)
+            
+            color_frame = np.zeros((height, width, 3), dtype=np.uint8)
+            color_frame[:, :, 2] = frame_R
+            color_frame[:, :, 1] = frame_G
+            
+            frame_path = os.path.join(frames_dir, f'frame_{i:05d}.png')
+            cv2.imwrite(frame_path, color_frame)
+        
+        print(f"帧保存完成: {frames_dir}")
+
 
 def three_gray_array_to_RGB_mp4(array_R: np.ndarray, array_G: np.ndarray, array_B: np.ndarray, output_path: str, fps: float = 25.0, codec: str = "mp4v", output_frames_folder: bool = False) -> None:
     """将三个灰度三维NumPy数组作为彩色视频的RGB通道写入MP4文件。
@@ -234,10 +313,10 @@ def three_gray_array_to_RGB_mp4(array_R: np.ndarray, array_G: np.ndarray, array_
 
         writer.write(color_frame)
 
-        if (i + 1) % 30 == 0:
-            print(f"已写入帧: {i + 1}/{frame_count}")
+        update_progress(i + 1, frame_count, prefix="写入RGB通道")
 
     writer.release()
+    finish_progress(prefix="写入RGB通道")
     print(f"RGB通道视频写入完成: {output_path}")
 
     # 如果需要输出帧文件夹
