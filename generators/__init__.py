@@ -1,7 +1,8 @@
 """
 视频生成器模块
 
-提供各种视频生成功能，包括基础纹理视频、复杂运动模式视频、复杂图形视频。
+提供各种视频生成功能，包括基础纹理视频、复杂运动模式视频、复杂图形视频、
+雪花飘落效果视频等。
 """
 
 from .perfect_camouflage import generate_perfect_camouflage_video
@@ -21,6 +22,7 @@ from .complex_shapes import (
     generate_rotating_shape_video,
     generate_shape_motion_video,
 )
+from .snowflake import generate_snowflake_video
 
 __all__ = [
     'generate_perfect_camouflage_video',
@@ -36,4 +38,5 @@ __all__ = [
     'generate_multi_shapes_video',
     'generate_rotating_shape_video',
     'generate_shape_motion_video',
+    'generate_snowflake_video',
 ]

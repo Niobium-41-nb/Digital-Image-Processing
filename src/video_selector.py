@@ -48,15 +48,13 @@ def select_video_gui(title="选择待处理的视频", default_conv_size=3, defa
     videos = scan_video_files()
     if not videos:
         messagebox.showerror("错误", "data/ 目录下没有找到任何视频文件！")
-        return None, None, None, None, None, None, None, None, None
+        return None, None, None, None, None, None, None
 
     selected = [None, None]  # [name, path]
 
     root = tk.Tk()
     conv_size_min = tk.IntVar(value=max(1, default_conv_size - 1))
     conv_size_max = tk.IntVar(value=default_conv_size)
-    enable_transposed = tk.BooleanVar(value=True)
-    enable_transposed_x = tk.BooleanVar(value=True)
     enable_diff = tk.BooleanVar(value=True)
     enable_scale = tk.BooleanVar(value=True)
     scale_factor = tk.IntVar(value=default_scale_factor)
@@ -173,23 +171,10 @@ def select_video_gui(title="选择待处理的视频", default_conv_size=3, defa
     diff_frame = ttk.LabelFrame(main_frame, text="帧间差分设置", padding="10")
     diff_frame.pack(fill=tk.X, pady=(10, 0))
 
-    ttk.Checkbutton(diff_frame, text="启用帧间差分（B通道反映运动强度）",
+    ttk.Checkbutton(diff_frame, text="启用帧间差分",
                     variable=enable_diff).pack(anchor=tk.W, pady=(2, 0))
 
-    ttk.Label(diff_frame, text="取消勾选则 RGB 融合的 B 通道置零，仅显示边缘检测结果",
-              font=("微软雅黑", 8), foreground="gray").pack(anchor=tk.W, pady=(5, 0))
-
-    # ========== 处理副本选择区域 ==========
-    copy_frame = ttk.LabelFrame(main_frame, text="处理副本选择", padding="10")
-    copy_frame.pack(fill=tk.X, pady=(10, 0))
-
-    ttk.Checkbutton(copy_frame, text="副本B：转置Y轴与时间轴 (H, T, W)",
-                    variable=enable_transposed).pack(anchor=tk.W, pady=(2, 0))
-
-    ttk.Checkbutton(copy_frame, text="副本C：转置X轴与时间轴 (W, H, T)",
-                    variable=enable_transposed_x).pack(anchor=tk.W, pady=(2, 0))
-
-    ttk.Label(copy_frame, text="取消勾选可跳过对应副本的处理以节省时间",
+    ttk.Label(diff_frame, text="启用后输出帧间差分灰度视频，反映运动强度",
               font=("微软雅黑", 8), foreground="gray").pack(anchor=tk.W, pady=(5, 0))
 
     # 按钮框架
@@ -248,10 +233,9 @@ def select_video_gui(title="选择待处理的视频", default_conv_size=3, defa
         if c_min > c_max:
             c_min, c_max = c_max, c_min
         return (selected[0], selected[1], c_min, c_max,
-                enable_transposed.get(), enable_transposed_x.get(),
                 enable_scale.get(), scale_factor.get(),
                 enable_diff.get())
-    return None, None, None, None, None, None, None, None, None
+    return None, None, None, None, None, None, None
 
 
 def select_video_simple(title="选择待处理的视频", default_conv_size=3, default_scale_factor=2) -> tuple:
@@ -259,20 +243,20 @@ def select_video_simple(title="选择待处理的视频", default_conv_size=3, d
     简化版：如果只有一个视频则直接返回，多个视频则弹出 GUI。
 
     返回:
-        (selected_name, selected_path, conv_size_min, conv_size_max, enable_transposed,
-         enable_transposed_x, enable_scale, scale_factor, enable_diff)
+        (selected_name, selected_path, conv_size_min, conv_size_max,
+         enable_scale, scale_factor, enable_diff)
     """
     videos = scan_video_files()
     if not videos:
         print("[错误] data/ 目录下没有找到任何视频文件！")
-        return None, None, None, None, None, None, None, None, None
+        return None, None, None, None, None, None, None
     if len(videos) == 1:
         name, path = videos[0]
         print(f"data/ 目录下仅有一个视频文件，自动选择: {name}")
-        # 单视频时默认启用两个副本、放大和帧间差分
+        # 单视频时默认启用放大和帧间差分
         c_min = max(1, default_conv_size - 1)
         c_max = default_conv_size
-        return name, path, c_min, c_max, True, True, True, default_scale_factor, True
+        return name, path, c_min, c_max, True, default_scale_factor, True
     return select_video_gui(title, default_conv_size, default_scale_factor)
 
 
@@ -280,12 +264,10 @@ if __name__ == "__main__":
     # 测试 GUI 选择器
     result = select_video_gui()
     if result[0]:
-        name, path, c_min, c_max, enable_t, enable_tx, enable_s, s_factor, enable_diff = result
+        name, path, c_min, c_max, enable_s, s_factor, enable_diff = result
         print(f"已选择: {name}")
         print(f"路径: {path}")
         print(f"卷积核大小区间: {c_min} ~ {c_max}")
-        print(f"副本B (Y-T转置): {'启用' if enable_t else '禁用'}")
-        print(f"副本C (X-T转置): {'启用' if enable_tx else '禁用'}")
         print(f"帧间差分: {'启用' if enable_diff else '禁用'}")
         print(f"图像放大: {'启用' if enable_s else '禁用'} (倍数: {s_factor}x)")
     else:
