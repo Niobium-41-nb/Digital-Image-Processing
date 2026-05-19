@@ -212,7 +212,8 @@ def process_three_frames(f0: np.ndarray, f1: np.ndarray, f2: np.ndarray) -> np.n
 # 扫描主流程
 # ============================================================
 
-def scan_angles(arr: np.ndarray, start_angle: float = 0.0, end_angle: float = 90.0) -> Tuple[np.ndarray, np.ndarray]:
+def scan_angles(arr: np.ndarray, start_angle: float = 0.0, end_angle: float = 90.0,
+                step: float = 1.0) -> Tuple[np.ndarray, np.ndarray]:
     """扫描指定角度范围，计算每个角度的边缘检测平均值。
 
     对每个角度，逐帧处理并累积边缘强度。
@@ -222,6 +223,7 @@ def scan_angles(arr: np.ndarray, start_angle: float = 0.0, end_angle: float = 90
         arr: 视频数组，形状 (frames, height, width)，uint8
         start_angle: 起始角度（度）
         end_angle: 终止角度（度）
+        step: 角度步长（度，默认 1.0）
 
     返回:
         (angles, averages) 元组
@@ -233,7 +235,7 @@ def scan_angles(arr: np.ndarray, start_angle: float = 0.0, end_angle: float = 90
     width: int
     total_frames, height, width = arr.shape
 
-    angles: np.ndarray = np.arange(start_angle, end_angle + 1e-9, 1.0)
+    angles: np.ndarray = np.arange(start_angle, end_angle + 1e-9, step)
     num_angles: int = len(angles)
 
     # --------------------------------------------------
@@ -360,15 +362,26 @@ def save_results(angles: np.ndarray, averages: np.ndarray, output_dir: str) -> N
 # ============================================================
 
 def main() -> None:
-    """主函数：解析参数、读取视频、执行扫描、保存结果。"""
-    video_path: str = os.path.join(PROJECT_ROOT, 'data', 'snowfall.mp4')
+    """主函数：解析参数、读取视频、执行扫描、保存结果。
+
+    命令行参数（按位置）:
+        [start]  起始角度（默认 0）
+        [end]    终止角度（默认 180）
+        [step]   角度步长（默认 1）
+    """
+    # 默认使用微小尺寸视频（20×20）进行快速测试
+    # 可通过命令行参数 --video 指定其他视频文件
+    video_path: str = os.path.join(PROJECT_ROOT, 'data', 'snowfall_tiny.mp4')
     start_angle: float = 0.0
     end_angle: float = 180.0
+    step: float = 0.5
 
     if len(sys.argv) >= 2:
         start_angle = float(sys.argv[1])
     if len(sys.argv) >= 3:
         end_angle = float(sys.argv[2])
+    if len(sys.argv) >= 4:
+        step = float(sys.argv[3])
 
     output_dir: str = os.path.join(PROJECT_ROOT, 'output', 'angle_edge_scan')
     os.makedirs(output_dir, exist_ok=True)
@@ -379,14 +392,14 @@ def main() -> None:
     print("║        角度-边缘平均值扫描实验                         ║")
     print("╚══════════════════════════════════════════════════════╝")
     print(f"  输入视频 : {video_path}")
-    print(f"  扫描范围 : {start_angle:.0f}° ~ {end_angle:.0f}°，步长 1°")
+    print(f"  扫描范围 : {start_angle:.0f}° ~ {end_angle:.0f}°，步长 {step}°")
     print(f"  输出目录 : {output_dir}")
     print()
 
     # 检查视频文件是否存在
     if not os.path.isfile(video_path):
         print(f"  ✗ 错误: 未找到视频文件: {video_path}")
-        print(f"    请确保 data/snowfall.mp4 存在。")
+        print(f"    请确保 data/snowfall_tiny.mp4 存在。")
         sys.exit(1)
 
     # ── 读取视频 ──
@@ -396,10 +409,11 @@ def main() -> None:
     print()
 
     # ── 扫描 ──
-    print(f"  ◆ 步骤2: 角度扫描 ({start_angle:.0f}° ~ {end_angle:.0f}°，共 {int(end_angle - start_angle) + 1} 个角度)")
+    num_angles: int = int((end_angle - start_angle) / step) + 1
+    print(f"  ◆ 步骤2: 角度扫描 ({start_angle:.0f}° ~ {end_angle:.0f}°，步长 {step}°，共 {num_angles} 个角度)")
     angles: np.ndarray
     averages: np.ndarray
-    angles, averages = scan_angles(arr, start_angle, end_angle)
+    angles, averages = scan_angles(arr, start_angle, end_angle, step)
 
     # 释放大数组内存
     del arr
