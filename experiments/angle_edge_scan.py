@@ -371,7 +371,7 @@ def main() -> None:
     """
     # 默认使用微小尺寸视频（20×20）进行快速测试
     # 可通过命令行参数 --video 指定其他视频文件
-    video_path: str = os.path.join(PROJECT_ROOT, 'data', 'snowfall_tiny.mp4')
+    video_path: str = os.path.join(PROJECT_ROOT, 'data', 'dual_scroll_background_right_foreground_down.mp4')
     start_angle: float = 0.0
     end_angle: float = 180.0
     step: float = 0.5
