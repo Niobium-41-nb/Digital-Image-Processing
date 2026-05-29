@@ -1,10 +1,16 @@
 """
 ============================================================
-角度-边缘平均值扫描实验（优化版 v4）
+角度-边缘平均值扫描实验（优化版 v5 —— 多视频支持）
 ============================================================
 
 以旋转角度 rotate_angle 为自变量（步长 1°），
 边缘检测结果平均值为因变量，绘制曲线图。
+
+v5 新增功能：
+  - 自动扫描 data/ 目录下所有 .mp4 视频，逐个处理
+  - 每个视频的结果保存在独立子目录中
+  - 生成多视频对比叠加曲线图
+  - 支持通过命令行参数指定要处理的视频（支持通配符匹配）
 
 优化策略（v4）：
   - 预计算每个角度的有效像素掩码（旋转后非黑区域），避免重复计算
@@ -27,8 +33,9 @@ from __future__ import annotations
 
 import os
 import sys
+import glob
 from collections import deque
-from typing import Tuple
+from typing import Tuple, List
 
 import cv2
 import numpy as np
@@ -303,16 +310,18 @@ def scan_angles(arr: np.ndarray, start_angle: float = 0.0, end_angle: float = 90
 
 
 # ============================================================
-# 结果可视化与保存
+# 结果可视化与保存（单视频）
 # ============================================================
 
-def plot_results(angles: np.ndarray, averages: np.ndarray, output_dir: str) -> None:
+def plot_results(angles: np.ndarray, averages: np.ndarray, output_dir: str,
+                 video_name: str = "") -> None:
     """绘制角度-边缘平均值曲线图并保存。
 
     参数:
         angles: 角度数组
         averages: 边缘平均值数组
         output_dir: 输出目录路径
+        video_name: 视频名称（用于标题）
     """
     plt.figure(figsize=(12, 6))
 
@@ -328,7 +337,10 @@ def plot_results(angles: np.ndarray, averages: np.ndarray, output_dir: str) -> N
 
     plt.xlabel('旋转角度 (度)', fontsize=12)
     plt.ylabel('边缘检测结果平均值', fontsize=12)
-    plt.title('旋转角度 vs 边缘检测平均值', fontsize=14)
+    title = '旋转角度 vs 边缘检测平均值'
+    if video_name:
+        title += f' — {video_name}'
+    plt.title(title, fontsize=14)
     plt.grid(True, alpha=0.3)
     plt.legend(fontsize=10)
 
@@ -358,40 +370,144 @@ def save_results(angles: np.ndarray, averages: np.ndarray, output_dir: str) -> N
 
 
 # ============================================================
-# 入口
+# 多视频对比叠加图
 # ============================================================
 
-def main() -> None:
-    """主函数：解析参数、读取视频、执行扫描、保存结果。
+def plot_multi_video_comparison(all_results: List[dict], output_dir: str) -> None:
+    """绘制多视频对比叠加曲线图。
 
-    命令行参数（按位置）:
-        [start]  起始角度（默认 0）
-        [end]    终止角度（默认 180）
-        [step]   角度步长（默认 1）
+    将所有视频的角度-边缘平均值曲线绘制在同一张图上，
+    使用不同颜色和线型区分不同视频。
+
+    参数:
+        all_results: 列表，每个元素为包含以下键的字典：
+            - 'name': 视频名称
+            - 'angles': 角度数组
+            - 'averages': 边缘平均值数组
+        output_dir: 输出目录路径
     """
-    # 默认使用微小尺寸视频（20×20）进行快速测试
-    # 可通过命令行参数 --video 指定其他视频文件
-    video_path: str = os.path.join(PROJECT_ROOT, 'data', 'dual_scroll_background_right_foreground_down.mp4')
-    start_angle: float = 0.0
-    end_angle: float = 180.0
-    step: float = 0.5
+    plt.figure(figsize=(14, 7))
 
-    if len(sys.argv) >= 2:
-        start_angle = float(sys.argv[1])
-    if len(sys.argv) >= 3:
-        end_angle = float(sys.argv[2])
-    if len(sys.argv) >= 4:
-        step = float(sys.argv[3])
+    # 预定义颜色和线型循环
+    colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd',
+              '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf']
+    markers = ['o', 's', '^', 'D', 'v', '<', '>', 'p', '*', 'h']
 
-    output_dir: str = os.path.join(PROJECT_ROOT, 'output', 'angle_edge_scan')
+    for idx, result in enumerate(all_results):
+        name = result['name']
+        angles = result['angles']
+        averages = result['averages']
+        color = colors[idx % len(colors)]
+        marker = markers[idx % len(markers)]
+
+        plt.plot(angles, averages, color=color, marker=marker,
+                 markersize=2, linewidth=1.2, label=name, alpha=0.85)
+
+    plt.xlabel('旋转角度 (度)', fontsize=12)
+    plt.ylabel('边缘检测结果平均值', fontsize=12)
+    plt.title('多视频对比：旋转角度 vs 边缘检测平均值', fontsize=14)
+    plt.grid(True, alpha=0.3)
+    plt.legend(fontsize=9, loc='best', ncol=2)
+
+    plot_path: str = os.path.join(output_dir, 'multi_video_comparison.png')
+    plt.tight_layout()
+    plt.savefig(plot_path, dpi=150)
+
+    pdf_path: str = os.path.join(output_dir, 'multi_video_comparison.pdf')
+    plt.savefig(pdf_path, dpi=150)
+
+    plt.close()
+    print(f"    多视频对比图已保存: {plot_path}")
+
+
+def save_multi_video_summary(all_results: List[dict], output_dir: str) -> None:
+    """保存多视频扫描结果汇总 CSV。
+
+    参数:
+        all_results: 列表，每个元素为包含以下键的字典：
+            - 'name': 视频名称
+            - 'angles': 角度数组
+            - 'averages': 边缘平均值数组
+        output_dir: 输出目录路径
+    """
+    csv_path: str = os.path.join(output_dir, 'multi_video_summary.csv')
+    with open(csv_path, 'w', encoding='utf-8') as f:
+        # 表头：角度, 视频1平均值, 视频2平均值, ...
+        header_parts = ["角度(度)"]
+        for result in all_results:
+            header_parts.append(result['name'])
+        f.write(','.join(header_parts) + '\n')
+
+        # 数据行
+        for i in range(len(all_results[0]['angles'])):
+            row_parts = [f"{all_results[0]['angles'][i]:.0f}"]
+            for result in all_results:
+                row_parts.append(f"{result['averages'][i]:.6f}")
+            f.write(','.join(row_parts) + '\n')
+
+    print(f"    多视频汇总 CSV 已保存: {csv_path}")
+
+
+# ============================================================
+# 视频扫描工具
+# ============================================================
+
+def scan_video_files(data_dir: str = "data") -> List[Tuple[str, str]]:
+    """扫描 data 目录下所有 .mp4 文件，返回 (文件名, 完整路径) 列表。
+
+    参数:
+        data_dir: 数据目录路径（相对于项目根目录或绝对路径）
+
+    返回:
+        [(name, path), ...] 列表，按文件名排序
+    """
+    data_path = os.path.join(PROJECT_ROOT, data_dir)
+    if not os.path.isdir(data_path):
+        print(f"  ✗ 错误: 数据目录不存在: {data_path}")
+        return []
+
+    video_files = sorted(glob.glob(os.path.join(data_path, "*.mp4")))
+    if not video_files:
+        print(f"  ✗ 错误: 在 {data_path} 下未找到任何 .mp4 文件")
+        return []
+
+    result = []
+    for vp in video_files:
+        name = os.path.splitext(os.path.basename(vp))[0]
+        result.append((name, vp))
+
+    return result
+
+
+# ============================================================
+# 单视频处理函数
+# ============================================================
+
+def process_single_video(video_name: str, video_path: str,
+                         start_angle: float, end_angle: float, step: float,
+                         base_output_dir: str) -> dict | None:
+    """处理单个视频：读取 → 扫描 → 保存结果。
+
+    参数:
+        video_name: 视频名称（不含扩展名）
+        video_path: 视频完整路径
+        start_angle: 起始角度
+        end_angle: 终止角度
+        step: 角度步长
+        base_output_dir: 基础输出目录
+
+    返回:
+        包含 'name', 'angles', 'averages' 的字典，失败时返回 None
+    """
+    # 每个视频独立输出目录
+    output_dir: str = os.path.join(base_output_dir, video_name)
     os.makedirs(output_dir, exist_ok=True)
 
-    # ── 标题 ──
     print()
     print("╔══════════════════════════════════════════════════════╗")
-    print("║        角度-边缘平均值扫描实验                         ║")
+    print(f"║  处理视频: {video_name:<34s} ║")
     print("╚══════════════════════════════════════════════════════╝")
-    print(f"  输入视频 : {video_path}")
+    print(f"  视频路径 : {video_path}")
     print(f"  扫描范围 : {start_angle:.0f}° ~ {end_angle:.0f}°，步长 {step}°")
     print(f"  输出目录 : {output_dir}")
     print()
@@ -399,12 +515,15 @@ def main() -> None:
     # 检查视频文件是否存在
     if not os.path.isfile(video_path):
         print(f"  ✗ 错误: 未找到视频文件: {video_path}")
-        print(f"    请确保 data/snowfall_tiny.mp4 存在。")
-        sys.exit(1)
+        return None
 
     # ── 读取视频 ──
     print("  ◆ 步骤1: 读取视频")
-    arr: np.ndarray = mp4_to_grayscale_array(video_path)
+    try:
+        arr: np.ndarray = mp4_to_grayscale_array(video_path)
+    except Exception as e:
+        print(f"  ✗ 读取视频失败: {e}")
+        return None
     print(f"    视频数组: {arr.shape}, dtype: {arr.dtype}")
     print()
 
@@ -443,11 +562,116 @@ def main() -> None:
     print()
     print("  ◆ 步骤3: 保存结果")
     save_results(angles, averages, output_dir)
-    plot_results(angles, averages, output_dir)
+    plot_results(angles, averages, output_dir, video_name=video_name)
     print(f"    输出目录: {output_dir}")
     print(f"    数据文件: angle_edge_average_data.csv")
     print(f"    曲线图  : angle_vs_edge_average.png")
     print(f"    矢量图  : angle_vs_edge_average.pdf")
+    print()
+
+    return {
+        'name': video_name,
+        'angles': angles,
+        'averages': averages,
+    }
+
+
+# ============================================================
+# 入口
+# ============================================================
+
+def main() -> None:
+    """主函数：扫描 data/ 目录下所有视频，逐个执行角度扫描。
+
+    命令行参数（可选，按位置）:
+        [video_filter]  视频名称过滤关键字（支持部分匹配，如 "snow" 匹配所有含 snow 的视频）
+                        不提供则处理 data/ 下所有 .mp4 文件
+        [start]         起始角度（默认 0）
+        [end]           终止角度（默认 180）
+        [step]          角度步长（默认 0.5）
+    """
+    # ── 解析命令行参数 ──
+    video_filter: str | None = None
+    start_angle: float = 0.0
+    end_angle: float = 180.0
+    step: float = 0.5
+
+    if len(sys.argv) >= 2:
+        video_filter = sys.argv[1]
+    if len(sys.argv) >= 3:
+        start_angle = float(sys.argv[2])
+    if len(sys.argv) >= 4:
+        end_angle = float(sys.argv[3])
+    if len(sys.argv) >= 5:
+        step = float(sys.argv[4])
+
+    # ── 扫描视频文件 ──
+    all_videos = scan_video_files()
+    if not all_videos:
+        sys.exit(1)
+
+    # 如果指定了过滤关键字，只处理匹配的视频
+    if video_filter:
+        filtered_videos = [
+            (name, path) for name, path in all_videos
+            if video_filter.lower() in name.lower()
+        ]
+        if not filtered_videos:
+            print(f"  ✗ 未找到名称包含 '{video_filter}' 的视频文件")
+            print(f"    可用视频: {', '.join(n for n, _ in all_videos)}")
+            sys.exit(1)
+        videos_to_process = filtered_videos
+    else:
+        videos_to_process = all_videos
+
+    print()
+    print("╔══════════════════════════════════════════════════════════════╗")
+    print("║          角度-边缘平均值扫描实验（多视频版）                   ║")
+    print("╚══════════════════════════════════════════════════════════════╝")
+    print(f"  扫描范围 : {start_angle:.0f}° ~ {end_angle:.0f}°，步长 {step}°")
+    print(f"  待处理视频: {len(videos_to_process)} 个")
+    for i, (name, path) in enumerate(videos_to_process, 1):
+        print(f"    [{i:2d}] {name}")
+    print()
+
+    # ── 基础输出目录 ──
+    base_output_dir: str = os.path.join(PROJECT_ROOT, 'output', 'angle_edge_scan')
+    os.makedirs(base_output_dir, exist_ok=True)
+
+    # ── 逐个处理视频 ──
+    all_results: list[dict] = []
+    for idx, (video_name, video_path) in enumerate(videos_to_process, 1):
+        print(f"\n{'=' * 60}")
+        print(f"  处理进度: [{idx}/{len(videos_to_process)}]")
+        print(f"{'=' * 60}")
+
+        result = process_single_video(
+            video_name, video_path,
+            start_angle, end_angle, step,
+            base_output_dir,
+        )
+        if result is not None:
+            all_results.append(result)
+
+    # ── 多视频对比 ──
+    if len(all_results) >= 2:
+        print()
+        print("=" * 60)
+        print("  生成多视频对比叠加图...")
+        print("=" * 60)
+        plot_multi_video_comparison(all_results, base_output_dir)
+        save_multi_video_summary(all_results, base_output_dir)
+    elif len(all_results) == 1:
+        print()
+        print("  仅处理了 1 个视频，跳过对比叠加图生成")
+
+    # ── 完成 ──
+    print()
+    print("╔══════════════════════════════════════════════════════╗")
+    print("║              所有视频处理完成！                       ║")
+    print("╚══════════════════════════════════════════════════════╝")
+    print(f"  输出目录: {base_output_dir}")
+    print(f"  处理视频数: {len(all_results)}/{len(videos_to_process)}")
     print()
 
 
