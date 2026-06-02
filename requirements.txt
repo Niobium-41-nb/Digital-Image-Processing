@@ -6,16 +6,18 @@
 # ============================================================
 
 # ---- 核心科学计算 ----
-numpy>=1.21.0
+# Pin upper bounds to avoid unexpected breaking changes from major releases.
+# Adjust ranges if you intentionally target newer major versions.
+numpy>=1.21.0,<2.0
 
 # ---- 科学计算与图像处理 ----
-scipy>=1.7.0
+scipy>=1.7.0,<2.0
 
 # ---- 视频读写与图像处理 ----
-opencv-python>=4.5.0
+opencv-python>=4.5.0,<5.0
 
 # ---- 数据可视化（实验模块使用） ----
-matplotlib>=3.4.0
+matplotlib>=3.4.0,<4.0
 
 # ---- 进度条（可选，实验模块使用） ----
-tqdm>=4.60.0
+tqdm>=4.60.0,<5.0
