@@ -325,21 +325,21 @@ def plot_results(angles: np.ndarray, averages: np.ndarray, output_dir: str,
     """
     plt.figure(figsize=(12, 6))
 
-    plt.plot(angles, averages, 'b-o', markersize=3, linewidth=1.5, label='边缘平均值')
+    plt.plot(angles, averages, 'b-o', markersize=3, linewidth=1.5, label='Edge Average')
 
     max_idx: int = int(np.argmax(averages))
     min_idx: int = int(np.argmin(averages))
 
     plt.plot(angles[max_idx], averages[max_idx], 'r*', markersize=12,
-             label=f'最大值: {averages[max_idx]:.4f} @ {angles[max_idx]:.0f}°')
+             label=f'Max: {averages[max_idx]:.4f} @ {angles[max_idx]:.0f}°')
     plt.plot(angles[min_idx], averages[min_idx], 'g*', markersize=12,
-             label=f'最小值: {averages[min_idx]:.4f} @ {angles[min_idx]:.0f}°')
+             label=f'Min: {averages[min_idx]:.4f} @ {angles[min_idx]:.0f}°')
 
-    plt.xlabel('旋转角度 (度)', fontsize=12)
-    plt.ylabel('边缘检测结果平均值', fontsize=12)
-    title = '旋转角度 vs 边缘检测平均值'
+    plt.xlabel('Rotation Angle (deg)', fontsize=12)
+    plt.ylabel('Edge Detection Average', fontsize=12)
+    title = 'Rotation Angle vs Edge Detection Average'
     if video_name:
-        title += f' — {video_name}'
+        title += f' - {video_name}'
     plt.title(title, fontsize=14)
     plt.grid(True, alpha=0.3)
     plt.legend(fontsize=10)
@@ -364,7 +364,7 @@ def save_results(angles: np.ndarray, averages: np.ndarray, output_dir: str) -> N
     """
     csv_path: str = os.path.join(output_dir, 'angle_edge_average_data.csv')
     with open(csv_path, 'w', encoding='utf-8') as f:
-        f.write("角度(度),边缘平均值\n")
+        f.write("Angle(deg),EdgeAverage\n")
         for angle, avg in zip(angles, averages):
             f.write(f"{angle:.0f},{avg:.6f}\n")
 
@@ -403,9 +403,9 @@ def plot_multi_video_comparison(all_results: List[dict], output_dir: str) -> Non
         plt.plot(angles, averages, color=color, marker=marker,
                  markersize=2, linewidth=1.2, label=name, alpha=0.85)
 
-    plt.xlabel('旋转角度 (度)', fontsize=12)
-    plt.ylabel('边缘检测结果平均值', fontsize=12)
-    plt.title('多视频对比：旋转角度 vs 边缘检测平均值', fontsize=14)
+    plt.xlabel('Rotation Angle (deg)', fontsize=12)
+    plt.ylabel('Edge Detection Average', fontsize=12)
+    plt.title('Multi-Video Comparison: Rotation Angle vs Edge Detection Average', fontsize=14)
     plt.grid(True, alpha=0.3)
     plt.legend(fontsize=9, loc='best', ncol=2)
 
@@ -417,7 +417,7 @@ def plot_multi_video_comparison(all_results: List[dict], output_dir: str) -> Non
     plt.savefig(pdf_path, dpi=150)
 
     plt.close()
-    print(f"    多视频对比图已保存: {plot_path}")
+    print(f"    Multi-video comparison plot saved: {plot_path}")
 
 
 def save_multi_video_summary(all_results: List[dict], output_dir: str) -> None:
@@ -432,8 +432,8 @@ def save_multi_video_summary(all_results: List[dict], output_dir: str) -> None:
     """
     csv_path: str = os.path.join(output_dir, 'multi_video_summary.csv')
     with open(csv_path, 'w', encoding='utf-8') as f:
-        # 表头：角度, 视频1平均值, 视频2平均值, ...
-        header_parts = ["角度(度)"]
+        # Header: Angle, Video1 Average, Video2 Average, ...
+        header_parts = ["Angle(deg)"]
         for result in all_results:
             header_parts.append(result['name'])
         f.write(','.join(header_parts) + '\n')
@@ -445,7 +445,7 @@ def save_multi_video_summary(all_results: List[dict], output_dir: str) -> None:
                 row_parts.append(f"{result['averages'][i]:.6f}")
             f.write(','.join(row_parts) + '\n')
 
-    print(f"    多视频汇总 CSV 已保存: {csv_path}")
+    print(f"    Multi-video summary CSV saved: {csv_path}")
 
 
 # ============================================================
