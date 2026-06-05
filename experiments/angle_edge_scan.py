@@ -452,7 +452,7 @@ def save_multi_video_summary(all_results: List[dict], output_dir: str) -> None:
 # 视频扫描工具
 # ============================================================
 
-def scan_video_files(data_dir: str = "experiments\data") -> List[Tuple[str, str]]:
+def scan_video_files(data_dir: str = "experiments/data") -> List[Tuple[str, str]]:
     """扫描 data 目录下所有 .mp4 文件，返回 (文件名, 完整路径) 列表。
 
     参数:
