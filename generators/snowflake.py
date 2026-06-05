@@ -21,8 +21,8 @@ def generate_snowflake_video(
     square_size=4,
     fps=30,
     duration=15,
-    speed_x=1,
-    speed_y=0,
+    speed_x=0,
+    speed_y=1,
     output_frames_folder=False,
 ):
     """
@@ -123,8 +123,8 @@ if __name__ == "__main__":
     DATA_DIR = os.path.join(PROJECT_ROOT, 'data')
     os.makedirs(DATA_DIR, exist_ok=True)
     generate_snowflake_video(
-        os.path.join(DATA_DIR, 'snowfall.mp4'),
+        os.path.join(DATA_DIR, 'snowfall2.mp4'),
         square_size=4,
         speed_x=1,
-        speed_y=1,
+        speed_y=0,
     )
