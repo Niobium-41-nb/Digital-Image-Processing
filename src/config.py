@@ -38,4 +38,6 @@ def get_config():
         'CONVOLUTION_SIZE': int(env_config.get('CONVOLUTION_SIZE', 3)),
         'SCALE_FACTOR': int(env_config.get('SCALE_FACTOR', 4)),
         'POOL_SIZE': int(env_config.get('POOL_SIZE', int(env_config.get('SCALE_FACTOR', 4)))),
+        'METHOD': env_config.get('METHOD', 'prewitt'),  # 'prewitt' or 'fft'
+        'FFT_TILE_SIZE': int(env_config.get('FFT_TILE_SIZE', 512)),
     }

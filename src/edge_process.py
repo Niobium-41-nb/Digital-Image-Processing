@@ -177,7 +177,42 @@ def create_all_3d_edge_kernels(temporal_size: int) -> dict:
 def process_motion_blurred_array(blurred_arr, output_dir, suffix="",
                                   pool_size=4, max_memory=5 * 1024 ** 3,
                                   enable_diff=True,
-                                  temporal_size=3):
+                                  temporal_size=3,
+                                  method="prewitt",
+                                  tile_size=512):
+    """
+    方法分发器：根据 method 参数选择 Prewitt 3D 卷积或 3D FFT 频域分析。
+
+    参数:
+        blurred_arr: 输入视频的三维数组，形状 (frames, height, width)
+        output_dir: 输出目录路径
+        suffix: 输出文件名的后缀
+        pool_size: 最大池化核大小（pool_size=1 时不进行池化降采样）
+        max_memory: 最大允许内存（字节）
+        enable_diff: 是否计算帧间差分
+        temporal_size: 3D 卷积核的时间维度大小 T（Prewitt 方法使用）
+        method: "prewitt"（3D 卷积）或 "fft"（3D FFT 频域分析）
+        tile_size: FFT 方法的空间分块大小（仅 method="fft" 时生效）
+    """
+    if method == "fft":
+        from src.fft_3d_analysis import process_fft_3d_analysis
+        process_fft_3d_analysis(
+            blurred_arr, output_dir, suffix=suffix,
+            pool_size=pool_size, max_memory=max_memory,
+            enable_diff=enable_diff, tile_size=tile_size,
+        )
+    else:
+        _process_prewitt(
+            blurred_arr, output_dir, suffix=suffix,
+            pool_size=pool_size, max_memory=max_memory,
+            enable_diff=enable_diff, temporal_size=temporal_size,
+        )
+
+
+def _process_prewitt(blurred_arr, output_dir, suffix="",
+                     pool_size=4, max_memory=5 * 1024 ** 3,
+                     enable_diff=True,
+                     temporal_size=3):
     """
     对视频数组执行 **真正的3D卷积边缘检测** 和帧间差分。
 
