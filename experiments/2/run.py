@@ -40,6 +40,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
+# 视频大小
 SIZE: int = 1000
 
 # ============================================================
@@ -490,26 +491,43 @@ def print_usage():
     print(__doc__)
     print()
     print("用法:")
-    print("  python run.py                    # 生成+扫描（默认）")
-    print("  python run.py generate           # 仅生成测试视频")
-    print("  python run.py scan               # 仅扫描已存在的视频")
+    print("  python run.py [SIZE]               # 生成+扫描（默认），SIZE 默认 1000")
+    print("  python run.py [SIZE] generate      # 仅生成测试视频")
+    print("  python run.py [SIZE] scan          # 仅扫描已存在的视频")
+    print()
+    print("参数:")
+    print("  SIZE    视频宽高（整数，正方形），默认 1000")
     print()
     print("示例:")
-    print("  python run.py                           # 一键生成+扫描")
-    print("  python run.py generate                  # 仅生成测试视频")
-    print("  python run.py scan                      # 仅扫描 data/ 下已有视频")
+    print("  python run.py                           # 一键生成+扫描，默认 1000×1000")
+    print("  python run.py 200 generate              # 生成 200×200 测试视频")
+    print("  python run.py 500 scan                  # 仅扫描 data/ 下已有视频，N/A")
 
 
 def main():
-    mode = sys.argv[1] if len(sys.argv) >= 2 else 'all'
+    # 解析命令行参数：run.py [SIZE] [mode]
+    size = SIZE  # 默认值
+    mode = 'all'
 
-    if mode in ('-h', '--help', 'help'):
-        print_usage()
-        return
+    for arg in sys.argv[1:]:
+        if arg in ('-h', '--help', 'help'):
+            print_usage()
+            return
+        if arg in ('generate', 'scan', 'all'):
+            mode = arg
+        else:
+            try:
+                size = int(arg)
+            except ValueError:
+                print(f"  ✗ 无法识别的参数: {arg}")
+                print_usage()
+                return
+
+    print(f"视频大小: {size}×{size}")
 
     if mode == 'generate':
         # 仅生成
-        generate_snowflake_video(DATA_DIR)
+        generate_snowflake_video(DATA_DIR, width=size, height=size)
         return
 
     if mode == 'scan':
@@ -521,7 +539,7 @@ def main():
     print("=" * 60)
     print("步骤1：生成测试视频")
     print("=" * 60)
-    frames_dir = generate_snowflake_video(DATA_DIR)
+    frames_dir = generate_snowflake_video(DATA_DIR, width=size, height=size)
     print()
 
     print("=" * 60)
