@@ -1,4 +1,4 @@
 .venv/*
-output/*
+output
 __pycache__/
 .env

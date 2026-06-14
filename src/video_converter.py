@@ -9,17 +9,60 @@ import os
 
 import cv2
 import numpy as np
+from PIL import Image
 
 from src.progress_bar import update_progress, finish_progress
 
 
+def _read_frames_from_directory(dir_path: str) -> np.ndarray:
+    """从 PNG 帧序列文件夹读取灰度视频数组。
+
+    文件夹中应包含按 frame_00000.png, frame_00001.png, ... 命名的 PNG 文件。
+
+    返回:
+        灰度三维数组，形状为 (帧数, 高度, 宽度)
+    """
+    import glob
+
+    png_files = sorted(glob.glob(os.path.join(dir_path, "*.png")))
+    if not png_files:
+        raise FileNotFoundError(f"文件夹中未找到任何 PNG 文件: {dir_path}")
+
+    print(f"开始读取帧序列，共 {len(png_files)} 帧")
+
+    frames = []
+    for i, png_path in enumerate(png_files):
+        # 使用 PIL 读取（对中文路径兼容性更好）
+        try:
+            frame = np.array(Image.open(png_path).convert('L'), dtype=np.uint8)
+        except Exception as e:
+            raise RuntimeError(f"无法读取帧文件: {png_path}") from e
+        frames.append(frame)
+        update_progress(i + 1, len(png_files), prefix="读取帧序列")
+
+    finish_progress(prefix="读取帧序列")
+
+    if not frames:
+        return np.empty((0, 0, 0), dtype=np.uint8)
+
+    return np.stack(frames, axis=0)
+
+
 def mp4_to_grayscale_array(mp4_path: str) -> np.ndarray:
-    """读取MP4文件并返回灰度三维NumPy数组。
+    """读取视频文件或 PNG 帧序列文件夹，返回灰度三维NumPy数组。
+
+    支持：
+      - .mp4 / .avi 等视频文件（通过 OpenCV VideoCapture）
+      - 包含 PNG 帧序列的文件夹（文件名如 frame_00000.png）
 
     返回的数组形状为 (帧数, 高度, 宽度)。
     """
+    # 如果是文件夹，读取 PNG 帧序列
+    if os.path.isdir(mp4_path):
+        return _read_frames_from_directory(mp4_path)
+
     if not os.path.isfile(mp4_path):
-        raise FileNotFoundError(f"未找到MP4文件: {mp4_path}")
+        raise FileNotFoundError(f"未找到视频文件: {mp4_path}")
 
     cap = cv2.VideoCapture(mp4_path)
     if not cap.isOpened():

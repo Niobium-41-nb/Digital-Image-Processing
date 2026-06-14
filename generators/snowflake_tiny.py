@@ -13,6 +13,7 @@
 
 import cv2
 import numpy as np
+from PIL import Image
 
 
 def generate_snowflake_video(
@@ -47,9 +48,6 @@ def generate_snowflake_video(
     返回:
         无返回值，生成视频文件保存到指定路径
     """
-    # 创建视频写入器，使用mp4v编码格式
-    fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-    out = cv2.VideoWriter(filename, fourcc, fps, (width, height))
     # 计算总帧数
     num_frames = fps * duration
 
@@ -64,17 +62,21 @@ def generate_snowflake_video(
     # 生成随机黑白小图像（0或255），类似雪花噪点
     small = np.random.choice([0, 255], size=(rows, cols)).astype(np.uint8)
 
-    print(f"开始渲染雪花马赛克滚动视频: {filename}")
+    # 输出帧文件夹
+    frames_dir = filename.rsplit('.', 1)[0] + '_frames'
+    os.makedirs(frames_dir, exist_ok=True)
+
+    print(f"开始渲染雪花马赛克滚动视频帧序列: {frames_dir}")
     print(f"视频尺寸: {width}×{height}, 方块边长: {square_size}像素, 滚动速度: ({speed_x}, {speed_y}) 方块/帧")
 
-    # 逐帧生成视频
+    # 逐帧生成并保存为 PNG
     for i in range(num_frames):
         # 将小图像放大为实际尺寸
         frame_gray = np.repeat(np.repeat(small, square_size, axis=0), square_size, axis=1)
 
-        # 将灰度图转换为BGR格式并写入视频
-        frame_bgr = cv2.cvtColor(frame_gray, cv2.COLOR_GRAY2BGR)
-        out.write(frame_bgr)
+        # 保存帧为 PNG（使用 PIL 避免 OpenCV 对小尺寸 PNG 的兼容问题）
+        frame_path = os.path.join(frames_dir, f'frame_{i:05d}.png')
+        Image.fromarray(frame_gray, mode='L').save(frame_path)
 
         # 纹理向指定方向循环滚动
         if speed_x != 0:
@@ -86,35 +88,7 @@ def generate_snowflake_video(
         if i % 30 == 0:
             print(f"已生成帧: {i}/{num_frames}")
 
-    # 释放视频写入器
-    out.release()
-    print(f"视频生成完成: {filename}")
-
-    # 如果需要输出帧文件夹
-    if output_frames_folder:
-        import os
-
-        frames_dir = filename.rsplit('.', 1)[0] + '_frames'
-        os.makedirs(frames_dir, exist_ok=True)
-        print(f"开始保存帧到: {frames_dir}")
-
-        # 重新生成帧并保存
-        small = np.random.choice([0, 255], size=(rows, cols)).astype(np.uint8)
-
-        for i in range(num_frames):
-            frame_gray = np.repeat(np.repeat(small, square_size, axis=0), square_size, axis=1)
-
-            # 保存帧
-            frame_path = os.path.join(frames_dir, f'frame_{i:05d}.png')
-            cv2.imwrite(frame_path, frame_gray)
-
-            # 滚动
-            if speed_x != 0:
-                small = np.roll(small, shift=speed_x, axis=1)
-            if speed_y != 0:
-                small = np.roll(small, shift=speed_y, axis=0)
-
-        print(f"帧保存完成: {frames_dir}")
+    print(f"帧序列生成完成: {frames_dir}  ({num_frames} 帧)")
 
 
 if __name__ == "__main__":
@@ -124,9 +98,9 @@ if __name__ == "__main__":
     DATA_DIR = os.path.join(PROJECT_ROOT, 'data')
     os.makedirs(DATA_DIR, exist_ok=True)
     generate_snowflake_video(
-        os.path.join(DATA_DIR, 'snowfall_tiny.mp4'),
-        width=100,
-        height=100,
+        os.path.join(DATA_DIR, 'snowfall_tiny_50.avi'),
+        width=50,
+        height=50,
         square_size=4,
         speed_x=1,
         speed_y=1,
