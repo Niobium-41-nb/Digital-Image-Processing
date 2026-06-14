@@ -12,7 +12,7 @@ for size in "${SIZES[@]}"; do
     echo "========================================"
     echo "  SIZE = ${size} × ${size}"
     echo "========================================"
-    python "${SCRIPT_DIR}/2/run.py" "${size}"
+    python3 "${SCRIPT_DIR}/2/run.py" "${size}"
     echo ""
 done
 
