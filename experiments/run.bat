@@ -1,1 +1,0 @@
-python3 run.py --only-local
