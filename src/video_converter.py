@@ -48,7 +48,7 @@ def _read_frames_from_directory(dir_path: str) -> np.ndarray:
     return np.stack(frames, axis=0)
 
 
-def mp4_to_grayscale_array(mp4_path: str) -> np.ndarray:
+def mp4_to_grayscale_array(mp4_path: str, verbose: bool = True) -> np.ndarray:
     """读取视频文件或 PNG 帧序列文件夹，返回灰度三维NumPy数组。
 
     支持：
@@ -56,6 +56,10 @@ def mp4_to_grayscale_array(mp4_path: str) -> np.ndarray:
       - 包含 PNG 帧序列的文件夹（文件名如 frame_00000.png）
 
     返回的数组形状为 (帧数, 高度, 宽度)。
+
+    参数:
+        mp4_path: MP4 文件路径或文件夹路径
+        verbose: 是否显示进度条
     """
     # 如果是文件夹，读取 PNG 帧序列
     if os.path.isdir(mp4_path):
@@ -69,7 +73,8 @@ def mp4_to_grayscale_array(mp4_path: str) -> np.ndarray:
         raise RuntimeError(f"无法打开视频文件: {mp4_path}")
 
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    print(f"开始读取视频，共 {total_frames} 帧")
+    if verbose:
+        print(f"开始读取视频，共 {total_frames} 帧")
 
     frames = []
     frame_idx = 0
@@ -82,10 +87,12 @@ def mp4_to_grayscale_array(mp4_path: str) -> np.ndarray:
         frames.append(gray)
         frame_idx += 1
 
-        update_progress(frame_idx, total_frames, prefix="读取视频")
+        if verbose:
+            update_progress(frame_idx, total_frames, prefix="读取视频")
 
     cap.release()
-    finish_progress(prefix="读取视频")
+    if verbose:
+        finish_progress(prefix="读取视频")
 
     if not frames:
         return np.empty((0, 0, 0), dtype=np.uint8)
@@ -93,7 +100,7 @@ def mp4_to_grayscale_array(mp4_path: str) -> np.ndarray:
     return np.stack(frames, axis=0)
 
 
-def gray_array_to_mp4(array: np.ndarray, output_path: str, fps: float = 25.0, codec: str = "mp4v", output_frames_folder: bool = False) -> None:
+def gray_array_to_mp4(array: np.ndarray, output_path: str, fps: float = 25.0, codec: str = "mp4v", output_frames_folder: bool = False, verbose: bool = True) -> None:
     """将灰度三维NumPy数组写入MP4文件。
 
     输入数组形状必须为 (帧数, 高度, 宽度)。
@@ -117,7 +124,8 @@ def gray_array_to_mp4(array: np.ndarray, output_path: str, fps: float = 25.0, co
     if not writer.isOpened():
         raise RuntimeError(f"无法打开视频写入器进行输出: {output_path}")
 
-    print(f"开始写入视频，共 {frame_count} 帧")
+    if verbose:
+        print(f"开始写入视频，共 {frame_count} 帧")
     for i in range(frame_count):
         frame = array[i]
         if frame.shape != (height, width):
@@ -130,11 +138,13 @@ def gray_array_to_mp4(array: np.ndarray, output_path: str, fps: float = 25.0, co
 
         writer.write(frame)
 
-        update_progress(i + 1, frame_count, prefix="写入视频")
+        if verbose:
+            update_progress(i + 1, frame_count, prefix="写入视频")
 
     writer.release()
-    finish_progress(prefix="写入视频")
-    print(f"视频写入完成: {output_path}")
+    if verbose:
+        finish_progress(prefix="写入视频")
+        print(f"视频写入完成: {output_path}")
 
     # 如果需要输出帧文件夹
     if output_frames_folder:

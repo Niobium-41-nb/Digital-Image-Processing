@@ -34,7 +34,8 @@ def create_temporal_motion_blur(time_frames=3, height=1, width=1):
     # 所有元素均为 1.0，实现 (n, n, n) 全相同数值
     kernel = np.ones((time_frames, height, width), dtype=np.float64)
 
-    kernel = kernel / (1 / time_frames*height*width)
+    # 归一化：核的总和为 1，确保卷积后信号强度不变
+    kernel = kernel / (time_frames * height * width)
 
     return kernel
 
