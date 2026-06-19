@@ -77,16 +77,18 @@ def _cleanup_old(dir_path, max_age_s=1800):
 def api_generate():
     """生成马赛克形状视频。
 
-    POST JSON: {shape, bg_direction, shape_direction, block_size?, duration?}
+    POST JSON: {shape, bg_angle, shape_angle, block_size, color, thickness_scale, duration}
     返回: video/mp4
     """
     try:
         data = request.get_json()
         shape = data.get('shape', 'A')
-        bg_dir = data.get('bg_direction', 'right')
-        sh_dir = data.get('shape_direction', 'down')
-        block_size = data.get('block_size', 4)
-        duration = data.get('duration', 4)
+        bg_angle = float(data.get('bg_angle', 0))
+        sh_angle = float(data.get('shape_angle', 90))
+        block_size = int(data.get('block_size', 2))
+        color = data.get('color', True)
+        thickness_scale = float(data.get('thickness_scale', 1.0))
+        duration = int(data.get('duration', 4))
 
         # 生成到临时文件
         os.makedirs('output/web_generated', exist_ok=True)
@@ -98,9 +100,11 @@ def api_generate():
         from generators.text_shape import generate_text_shape_video
         _loud()  # 控制台看到进度
         generate_text_shape_video(fname, shape=shape,
-                                   bg_direction=bg_dir,
-                                   shape_direction=sh_dir,
+                                   bg_angle=bg_angle,
+                                   shape_angle=sh_angle,
                                    block_size=block_size,
+                                   color=color,
+                                   thickness_scale=thickness_scale,
                                    width=640, height=640,
                                    fps=25, duration=duration)
         _quiet()
@@ -139,7 +143,7 @@ def api_detect():
         # 检测
         from src.shape_detector import detect_shape, describe_shape
         _loud()
-        result = detect_shape(up_path, block_size=4,
+        result = detect_shape(up_path, block_size=None,  # 自动检测块大小
                               output_dir=f'output/web_uploads/{vid_id}_result',
                               visualize=True)
         _quiet()
@@ -214,11 +218,9 @@ def api_captcha_generate():
     pool += ['square', 'circle', 'triangle', 'star', 'hexagon']
     shape = np.random.choice(pool)
 
-    # 随机方向
-    bg_dirs = ['right', 'left', 'up', 'down']
-    sh_dirs = ['up', 'down', 'left', 'right']
-    bg_dir = np.random.choice(bg_dirs)
-    sh_dir = np.random.choice([d for d in sh_dirs if d != bg_dir])
+    # 确保两个方向不同
+    bg_angle = np.random.randint(0, 360)
+    sh_angle = (bg_angle + np.random.randint(60, 300)) % 360
 
     token = uuid.uuid4().hex[:12]
     vid_path = f'output/web_captcha/{token}.mp4'
@@ -226,9 +228,10 @@ def api_captcha_generate():
     from generators.text_shape import generate_text_shape_video
     _loud()
     generate_text_shape_video(vid_path, shape=shape,
-                               bg_direction=bg_dir,
-                               shape_direction=sh_dir,
-                               block_size=4,
+                               bg_angle=np.random.randint(0, 360),
+                               shape_angle=np.random.randint(0, 360),
+                               block_size=2, color=True,
+                               thickness_scale=1.0,
                                width=400, height=400,
                                fps=20, duration=2.5)
     _quiet()
