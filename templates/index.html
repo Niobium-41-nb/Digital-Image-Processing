@@ -1,491 +1,379 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Mosaic Shape Detection</title>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>马赛克形状识别</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
 <style>
-:root{--bg:#0a0a14;--card:#12122a;--border:#1e1e3f;--accent:#6366f1;--accent2:#06b6d4;--text:#e0e0e0;--muted:#888}
 *{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Segoe UI','Microsoft YaHei',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
-header{background:linear-gradient(135deg,#1a1a3e,#0f0f2a);padding:20px;text-align:center;border-bottom:1px solid var(--border)}
-header h1{font-size:24px;background:linear-gradient(135deg,var(--accent2),var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-nav{display:flex;justify-content:center;gap:0;background:#0d0d20;border-bottom:1px solid var(--border)}
-nav button{padding:14px 32px;border:none;background:transparent;color:var(--muted);cursor:pointer;font-size:15px;border-bottom:3px solid transparent;transition:.2s}
-nav button.active{color:var(--accent2);border-bottom-color:var(--accent2)}
-nav button:hover{color:#fff}
-.container{max-width:1000px;margin:0 auto;padding:24px}
-.tab{display:none}
-.tab.active{display:block}
-.card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:24px;margin-bottom:18px}
-.card h3{font-size:16px;margin-bottom:14px;color:var(--accent2)}
+body{font-family:'Segoe UI','Microsoft YaHei',sans-serif;background:#f5f5f8;color:#1a1a2e;line-height:1.5}
+header{background:#fff;padding:18px 20px;text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+header h1{font-size:22px;font-weight:700;color:#4f46e5}header p{font-size:13px;color:#888}
+nav{display:flex;justify-content:center;gap:0;background:#fff;border-bottom:1px solid #e5e5ec;margin-bottom:20px}
+nav button{padding:14px 28px;border:none;background:transparent;color:#888;cursor:pointer;font-size:14px;font-weight:500;border-bottom:3px solid transparent;transition:.2s}
+nav button.active{color:#4f46e5;border-bottom-color:#4f46e5;font-weight:600}
+nav button:hover{color:#4f46e5}
+main{max-width:750px;margin:0 auto;padding:0 16px 40px}
+.tab{display:none}.tab.active{display:block}
+.card{background:#fff;border:1px solid #e8e8f0;border-radius:14px;padding:22px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.03)}
+.card h2{font-size:16px;font-weight:600;margin-bottom:14px;color:#1a1a2e;display:flex;align-items:center;gap:8px}
+.card h2 .dot{width:9px;height:9px;border-radius:50%;background:#4f46e5}
 .row{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end}
-.col{display:flex;flex-direction:column;gap:6px;min-width:120px}
-.col label{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px}
-.col input[type=range]{width:100%;accent-color:var(--accent)}
-.col select,.col input[type=number]{padding:9px 12px;background:#0a0a1a;border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:14px}
-.col select:focus,.col input:focus{outline:none;border-color:var(--accent2)}
-.col .val{font-size:12px;color:var(--accent2);text-align:center}
-.shape-grid{display:flex;flex-wrap:wrap;gap:6px}
-.shape-btn{padding:8px 14px;background:#0a0a1a;border:1px solid var(--border);border-radius:8px;color:#ccc;cursor:pointer;font-size:13px;transition:.2s}
-.shape-btn:hover{border-color:var(--accent2)}
-.shape-btn.selected{background:#1a1a5e;border-color:var(--accent);color:#fff;font-weight:bold}
-.btn{padding:10px 24px;border:none;border-radius:10px;font-size:14px;cursor:pointer;font-weight:600;transition:.2s}
-.btn-primary{background:linear-gradient(135deg,var(--accent),var(--accent2));color:#fff}
-.btn-primary:hover{opacity:.85;transform:translateY(-1px)}
-.btn-primary:disabled{opacity:.4;cursor:not-allowed;transform:none}
-.btn-sm{padding:6px 16px;font-size:12px}
-.video-wrap{text-align:center;margin:12px 0}
-.video-wrap video{max-width:100%;border-radius:10px;border:1px solid var(--border)}
-.result-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px}
-.stat-card{background:#0a0a1a;border:1px solid var(--border);border-radius:10px;padding:16px;text-align:center}
-.stat-card .val{font-size:28px;font-weight:bold;background:linear-gradient(135deg,var(--accent2),var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.stat-card .lbl{font-size:12px;color:var(--muted);margin-top:4px}
-.badge{display:inline-block;padding:4px 12px;border-radius:20px;font-size:12px;font-weight:bold}
-.badge-ok{background:#064e3b;color:#34d399}
-.badge-warn{background:#78350f;color:#fbbf24}
-.badge-err{background:#7f1d1d;color:#fca5a5}
-canvas{max-height:220px}
-.loading{text-align:center;padding:40px}
-.spinner{display:inline-block;width:36px;height:36px;border:3px solid #333;border-top-color:var(--accent2);border-radius:50%;animation:spin .7s linear infinite}
+.col{display:flex;flex-direction:column;gap:5px;min-width:100px;flex:1}
+.col label{font-size:11px;color:#999;text-transform:uppercase;letter-spacing:.5px}
+.col input[type=range]{width:100%;accent-color:#4f46e5}
+.col input[type=text],.col input[type=number],.col select{padding:9px 12px;border:1px solid #ddd;border-radius:8px;font-size:13px;outline:none;background:#fafafa}
+.col input:focus,.col select:focus{border-color:#4f46e5;background:#fff}
+.col .val{font-size:12px;color:#4f46e5;text-align:center}
+.picker{display:flex;flex-wrap:wrap;gap:5px}
+.picker button{padding:9px 15px;border:1px solid #e0e0e8;border-radius:9px;background:#f9f9fc;color:#555;cursor:pointer;font-size:15px;font-weight:500;transition:.15s}
+.picker button:hover{border-color:#4f46e5;color:#4f46e5;background:#f0f0ff}
+.picker button.sel{background:#4f46e5;color:#fff;border-color:#4f46e5}
+.btn{padding:10px 24px;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;transition:.2s}
+.btn-primary{background:#4f46e5;color:#fff}.btn-primary:hover{background:#4338ca}.btn-primary:disabled{opacity:.4;cursor:not-allowed}
+.btn-ghost{background:#fff;color:#555;border:1px solid #ddd}.btn-ghost:hover{border-color:#4f46e5}
+.video-wrap{text-align:center;margin:8px 0}.video-wrap video{max-width:100%;max-height:360px;border-radius:10px;border:1px solid #e8e8f0}
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.stat{background:#fafafe;border:1px solid #e8e8f0;border-radius:10px;padding:16px;text-align:center}
+.stat .val{font-size:24px;font-weight:700;color:#4f46e5}
+.stat .lbl{font-size:11px;color:#999;margin-top:3px}
+.conf-row{display:flex;align-items:center;gap:10px;margin:5px 0}
+.conf-row .c{font-weight:700;font-size:14px;width:28px;color:#4f46e5}
+.conf-row .bar{flex:1;height:7px;background:#e8e8f0;border-radius:4px;overflow:hidden}
+.conf-row .bar div{height:100%;border-radius:4px;background:linear-gradient(90deg,#4f46e5,#818cf8)}
+.conf-row .s{font-size:11px;color:#999;width:32px;text-align:right}
+.img-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px}
+.img-grid .item{border-radius:8px;overflow:hidden;border:1px solid #e8e8f0}
+.img-grid .item img{width:100%;display:block}
+.img-grid .item .cap{font-size:10px;color:#999;text-align:center;padding:4px 0;background:#fafafe}
+.chart-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:12px}
+@media(max-width:500px){.chart-row{grid-template-columns:1fr}}
+.loading{text-align:center;padding:30px}
+.spinner{display:inline-block;width:32px;height:32px;border:3px solid #e8e8f0;border-top-color:#4f46e5;border-radius:50%;animation:spin .7s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
-.steps{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-top:12px}
-.steps img{width:100%;border-radius:8px;border:1px solid var(--border);cursor:pointer;transition:.2s}
-.steps img:hover{transform:scale(1.03);border-color:var(--accent2)}
-.steps .step-label{font-size:11px;color:var(--muted);text-align:center;margin-top:4px}
-.chart-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}
-@media(max-width:600px){.chart-row{grid-template-columns:1fr}}
-.preview-row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-@media(max-width:600px){.preview-row{grid-template-columns:1fr}}
+.badge{display:inline-block;padding:4px 12px;border-radius:12px;font-size:11px;font-weight:600}
+.badge-ok{background:#dcfce7;color:#166534}
+.badge-no{background:#fee2e2;color:#991b1b}
+.cap-box{text-align:center}
+.cap-box input[type=text]{padding:12px 18px;border:2px solid #ddd;border-radius:10px;font-size:20px;width:170px;text-align:center;letter-spacing:4px;outline:none}
+.cap-box input[type=text]:focus{border-color:#4f46e5}
+.cap-opts{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:8px 0}
+.cap-opts button{padding:10px 20px;border:2px solid #e0e0e8;border-radius:10px;background:#fafafe;color:#333;cursor:pointer;font-size:16px;font-weight:600;transition:.15s}
+.cap-opts button:hover{border-color:#4f46e5;background:#f0f0ff}
+.cap-opts button.pick{border-color:#4f46e5;background:#4f46e5;color:#fff}
+.cap-opts button .sym{font-size:20px;margin-right:4px}
+.empty-state{text-align:center;padding:40px 20px}
+.empty-state .icon{font-size:48px;margin-bottom:12px}
+.empty-state .title{font-size:16px;font-weight:600;color:#555}
+.empty-state .desc{font-size:13px;color:#999;margin-top:4px}
+pre.raw{background:#fafafe;border:1px solid #e8e8f0;border-radius:8px;padding:12px;font-size:11px;color:#888;overflow-x:auto}
+.inline-input{display:flex;align-items:center;gap:8px}
+.inline-input input{padding:8px 12px;border:1px solid #ddd;border-radius:8px;font-size:15px;width:120px;text-align:center;outline:none;font-weight:600}
+.inline-input input:focus{border-color:#4f46e5}
 </style>
 </head>
 <body>
-
-<header><h1>Mosaic Shape Detection</h1></header>
-
+<header><h1>马赛克形状识别</h1><p>基于运动差异的形状检测 · 频域+空域融合分析</p></header>
 <nav>
-  <button class="active" data-tab="generate">生成视频</button>
-  <button data-tab="detect">识别形状</button>
-  <button data-tab="captcha">验证码</button>
+  <button class="active" data-t="generate">生成视频</button>
+  <button data-t="detect">识别形状</button>
+  <button data-t="captcha">验证码</button>
 </nav>
+<main>
 
-<!-- ============ Tab 1: 生成视频 ============ -->
-<div id="tab-generate" class="tab active">
-  <div class="container">
-    <div class="card">
-      <h3>选择形状</h3>
-      <div class="shape-grid" id="shapeGrid"></div>
-    </div>
-
-    <div class="card">
-      <h3>运动参数</h3>
-      <div class="row">
-        <div class="col" style="min-width:200px;flex:1">
-          <label>背景角度: <span id="bgAngleVal">0°</span> (→)</label>
-          <input type="range" id="bgAngle" min="0" max="360" value="0" step="1"
-                 oninput="updateAngle('bg')">
-        </div>
-        <div class="col" style="min-width:200px;flex:1">
-          <label>形状角度: <span id="shAngleVal">90°</span> (↓)</label>
-          <input type="range" id="shAngle" min="0" max="360" value="90" step="1"
-                 oninput="updateAngle('sh')">
-        </div>
+<!-- ========== 生成视频 ========== -->
+<div id="t-generate" class="tab active">
+  <div class="card">
+    <h2><span class="dot"></span>绘制形状</h2>
+    <div style="display:flex;flex-wrap:wrap;gap:10px;align-items:center">
+      <div class="inline-input">
+        <span style="font-size:13px;color:#888">字符:</span>
+        <input type="text" id="shapeInput" value="A" maxlength="3" oninput="onShapeInput()">
       </div>
-      <div class="row" style="margin-top:12px">
-        <div class="col">
-          <label>块密度: <span id="bsVal">2px</span></label>
-          <input type="range" id="blockSize" min="2" max="4" value="2" step="1"
-                 oninput="updateBS()">
-        </div>
-        <div class="col">
-          <label>粗细: <span id="thVal">1.0x</span></label>
-          <input type="range" id="thickness" min="0.5" max="2.0" value="1.0" step="0.1"
-                 oninput="updateTh()">
-        </div>
-        <div class="col">
-          <label>色彩</label>
-          <select id="colorMode">
-            <option value="1">彩色</option>
-            <option value="0">黑白</option>
-          </select>
-        </div>
-        <div class="col">
-          <label>时长(秒)</label>
-          <input type="number" id="duration" value="4" min="1" max="10" style="width:70px">
-        </div>
-        <div class="col" style="justify-content:flex-end">
-          <button class="btn btn-primary" id="btnGen" onclick="genVideo()">生成视频</button>
-        </div>
-      </div>
+      <span style="color:#ccc">|</span>
+      <div class="picker" id="quickPick">
+        <button class="sel" onclick="setShape('A')">A</button><button onclick="setShape('B')">B</button><button onclick="setShape('K')">K</button><button onclick="setShape('M')">M</button><button onclick="setShape('X')">X</button><button onclick="setShape('8')">8</button><button onclick="setShape('■')" title="正方形">■</button><button onclick="setShape('●')" title="圆形">●</button><button onclick="setShape('▲')" title="三角形">▲</button><button onclick="setShape('★')" title="星形">★</button><button onclick="setShape('⬡')" title="六边形">⬡</button>      </div>
     </div>
+  </div>
 
-    <div id="genLoading" class="loading" style="display:none"><div class="spinner"></div><p>生成中...</p></div>
-    <div class="card" id="genCard" style="display:none">
-      <h3>预览</h3>
-      <div class="video-wrap"><video id="genVid" controls autoplay loop></video></div>
+  <div class="card">
+    <h2><span class="dot" style="background:#06b6d4"></span>运动参数</h2>
+    <div class="row">
+      <div class="col"><label>背景角度 <span id="bgV">0°(→)</span></label><input type="range" id="bgA" min="0" max="359" value="0" oninput="upA('bg')"></div>
+      <div class="col"><label>形状角度 <span id="shV">90°(↓)</span></label><input type="range" id="shA" min="0" max="359" value="90" oninput="upA('sh')"></div>
     </div>
+    <div class="row" style="margin-top:10px">
+      <div class="col"><label>块密度</label><select id="bs"><option value="2">2px 细密</option><option value="3">3px 中等</option><option value="4">4px 标准</option></select></div>
+      <div class="col"><label>粗细 <span id="thV">1.0x</span></label><input type="range" id="th" min="0.5" max="2" value="1" step="0.1" oninput="upTh()"></div>
+      <div class="col"><label>色彩</label><select id="co"><option value="1">彩色</option><option value="0">黑白</option></select></div>
+      <div class="col"><label>时长(秒)</label><input type="number" id="du" value="4" min="1" max="10" style="width:60px"></div>
+      <div class="col" style="justify-content:flex-end"><button class="btn btn-primary" id="btnG" onclick="gen()">生成视频</button></div>
+    </div>
+  </div>
+  <div id="gSpin" class="loading" style="display:none"><div class="spinner"></div><p style="color:#999;margin-top:6px">生成中...</p></div>
+  <div class="card" id="gCard" style="display:none"><h2><span class="dot" style="background:#22c55e"></span>预览</h2><div class="video-wrap"><video id="gVid" controls autoplay loop></video></div></div>
+</div>
+
+<!-- ========== 识别形状 ========== -->
+<div id="t-detect" class="tab">
+  <div class="card">
+    <h2><span class="dot" style="background:#06b6d4"></span>上传视频进行分析</h2>
+    <div class="row"><input type="file" id="dFile" accept="video/*" style="color:#555"><button class="btn btn-primary" id="btnD" onclick="det()">开始识别</button></div>
+    <p style="font-size:12px;color:#aaa;margin-top:8px">支持 mp4 / avi / mov 等常见视频格式</p>
+  </div>
+  <div id="dSpin" class="loading" style="display:none"><div class="spinner"></div><p style="color:#999;margin-top:6px">FFT 相位相关 + 结构张量分析中...</p></div>
+  <div id="dOut" style="display:none"></div>
+</div>
+
+<!-- ========== 验证码 ========== -->
+<div id="t-captcha" class="tab">
+  <div class="card cap-box">
+    <h2 style="justify-content:center"><span class="dot" style="background:#4f46e5"></span>马赛克动态验证码</h2>
+    <p style="color:#999;font-size:13px;margin-bottom:8px">形状区域和背景以<strong>不同方向</strong>移动，识别出其中的形状</p>
+    <div class="video-wrap"><video id="cVid" controls autoplay loop style="max-width:340px"></video></div>
+    <div id="capType" style="margin:6px 0;color:#999;font-size:12px"></div>
+    <div class="cap-opts" id="capOpts"></div>
+    <div style="margin:8px 0"><input type="text" id="capInput" placeholder="输入答案" maxlength="10" style="display:none" onkeydown="if(event.key==='Enter')vCap()"></div>
+    <div style="margin-top:8px">
+      <button class="btn btn-primary" onclick="vCap()">验证</button>
+      <button class="btn btn-ghost" onclick="rCap()" style="margin-left:6px">换一个</button>
+    </div>
+    <div id="cRes" style="margin-top:10px"></div>
   </div>
 </div>
 
-<!-- ============ Tab 2: 识别形状 ============ -->
-<div id="tab-detect" class="tab">
-  <div class="container">
-    <div class="card">
-      <h3>上传视频</h3>
-      <div class="row">
-        <input type="file" id="detFile" accept="video/*" style="color:var(--text)">
-        <button class="btn btn-primary" id="btnDet" onclick="detect()">开始识别</button>
-      </div>
-    </div>
-    <div id="detLoading" class="loading" style="display:none"><div class="spinner"></div><p>分析中...</p></div>
-
-    <div id="detResult" style="display:none">
-      <!-- 结果卡片 -->
-      <div class="card">
-        <h3>识别结果</h3>
-        <div class="result-grid" id="detStats"></div>
-        <div id="ocrBars" style="margin-top:14px"></div>
-      </div>
-
-      <!-- 过程图 -->
-      <div class="card">
-        <h3>检测过程</h3>
-        <div class="steps" id="detSteps"></div>
-      </div>
-
-      <!-- 图表 -->
-      <div class="card">
-        <h3>分析图表</h3>
-        <div class="chart-row">
-          <div><canvas id="chartMotion"></canvas></div>
-          <div><canvas id="chartGeometry"></canvas></div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
-
-<!-- ============ Tab 3: 验证码 ============ -->
-<div id="tab-captcha" class="tab">
-  <div class="container">
-    <div class="card" style="text-align:center">
-      <h3>马赛克动态验证码</h3>
-      <p style="color:var(--muted);margin-bottom:12px">观看视频中<strong>形状区域的移动方向</strong>，输入你看到的字母/数字/图形</p>
-      <div class="video-wrap"><video id="capVid" controls autoplay loop style="max-width:400px"></video></div>
-      <div style="margin:14px 0">
-        <input type="text" id="capInput" placeholder="输入答案" maxlength="10"
-               style="padding:12px 18px;background:#0a0a1a;border:2px solid var(--border);border-radius:10px;color:var(--text);font-size:20px;width:180px;text-align:center;letter-spacing:4px"
-               onkeydown="if(event.key==='Enter')verifyCap()">
-      </div>
-      <button class="btn btn-primary" onclick="verifyCap()">验证</button>
-      <button class="btn btn-sm" onclick="refreshCap()" style="margin-left:8px;background:#1a1a3e;color:#ccc;border:1px solid var(--border);border-radius:8px">换一个</button>
-      <div id="capResult" style="margin-top:14px"></div>
-    </div>
-  </div>
-</div>
+</main>
 
 <script>
-// ============ 初始化 ============
-const SHAPES = {
-  letters: 'A B C D E F G H J K L M N P Q R S T U V W X Y Z'.split(' '),
-  numbers: '2 3 4 5 6 7 8 9'.split(' '),
-  shapes: 'square circle triangle star hexagon diamond heart cross'.split(' '),
-};
-let curShape = 'A';
+console.log('Script starting...');
+window.onerror=function(m,s,l,c,e){console.error('Global error:',m,'at',s+':'+l);return false;};
+// SHAPE MAPPING: symbol -> internal name
+const SYM_MAP={'■':'square','●':'circle','▲':'triangle','★':'star','⬡':'hexagon'};
+const REV_MAP={};for(const[k,v]of Object.entries(SYM_MAP))REV_MAP[v]=k;
+let curShape='A';
 
-const grid = document.getElementById('shapeGrid');
-[...SHAPES.letters, ...SHAPES.numbers, ...SHAPES.shapes].forEach(s => {
-  const btn = document.createElement('button');
-  btn.className = 'shape-btn' + (s===curShape?' selected':'');
-  btn.textContent = s;
-  btn.onclick = () => {
-    curShape = s;
-    document.querySelectorAll('.shape-btn').forEach(b=>b.classList.toggle('selected',b.textContent===s));
-  };
-  grid.appendChild(btn);
+function resolveShape(s){
+  const xs=s.trim();
+  if(SYM_MAP[xs]) return SYM_MAP[xs];
+  if(xs.length===1&&/[A-Za-z0-9]/.test(xs)) return xs.toUpperCase();
+  return xs;
+}
+function displayShape(s){
+  if(REV_MAP[s]) return REV_MAP[s];
+  return s;
+}
+function setShape(s){
+  curShape=resolveShape(s);
+  document.getElementById('shapeInput').value=displayShape(curShape);
+  document.querySelectorAll('#quickPick button').forEach(b=>b.classList.remove('sel'));
+}
+window.setShape=setShape;
+window.resolveShape=resolveShape;
+window.displayShape=displayShape;
+function onShapeInput(){
+  curShape=resolveShape(document.getElementById('shapeInput').value);
+}
+
+const DIRS={0:'→',45:'↗',90:'↓',135:'↘',180:'←',225:'↙',270:'↑',315:'↖'};
+function upA(w){const e=document.getElementById(w+'A'),v=parseInt(e.value);document.getElementById(w+'V').textContent=v+'°('+(DIRS[Math.round(v/45)*45]||'')+')';}
+function upTh(){document.getElementById('thV').textContent=parseFloat(document.getElementById('th').value).toFixed(1)+'x';}
+
+// TABS
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  b.classList.add('active');document.getElementById('t-'+b.dataset.t).classList.add('active');
 });
 
-// ============ Tab 切换 ============
-document.querySelectorAll('nav button').forEach(b=>{
-  b.onclick = ()=>{
-    document.querySelectorAll('nav button').forEach(x=>x.classList.remove('active'));
-    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
-    b.classList.add('active');
-    document.getElementById('tab-'+b.dataset.tab).classList.add('active');
-  };
-});
-
-// ============ 角度显示 ============
-const DIRS = {0:'→',45:'↗',90:'↓',135:'↘',180:'←',225:'↙',270:'↑',315:'↖',360:'→'};
-function updateAngle(which) {
-  const el = document.getElementById(which+'Angle');
-  const span = document.getElementById(which+'AngleVal');
-  let v = parseInt(el.value);
-  if(v===360) v=0;
-  const dir = DIRS[Math.round(v/45)*45] || '';
-  span.textContent = v+'° '+dir;
-}
-function updateBS() {
-  document.getElementById('bsVal').textContent = document.getElementById('blockSize').value+'px';
-}
-function updateTh() {
-  document.getElementById('thVal').textContent = parseFloat(document.getElementById('thickness').value).toFixed(1)+'x';
+// GENERATE
+async function gen(){
+  const btn=document.getElementById('btnG');btn.disabled=true;
+  document.getElementById('gSpin').style.display='block';document.getElementById('gCard').style.display='none';
+  try{
+    const r=await fetch('/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({shape:curShape,bg_angle:parseInt(document.getElementById('bgA').value),
+        shape_angle:parseInt(document.getElementById('shA').value),block_size:parseInt(document.getElementById('bs').value),
+        color:document.getElementById('co').value==='1',thickness_scale:parseFloat(document.getElementById('th').value),
+        duration:parseInt(document.getElementById('du').value)||4})});
+    if(!r.ok)throw new Error(await r.text());
+    document.getElementById('gVid').src=URL.createObjectURL(await r.blob());
+    document.getElementById('gCard').style.display='block';
+  }catch(e){alert('生成失败: '+e.message);}
+  finally{btn.disabled=false;document.getElementById('gSpin').style.display='none';}
 }
 
-// ============ 生成视频 ============
-async function genVideo() {
-  const btn = document.getElementById('btnGen');
-  btn.disabled = true;
-  document.getElementById('genLoading').style.display = 'block';
-  document.getElementById('genCard').style.display = 'none';
+// DETECT
+async function det(){
+  const f=document.getElementById('dFile').files[0];if(!f)return;
+  const btn=document.getElementById('btnD');btn.disabled=true;
+  document.getElementById('dSpin').style.display='block';document.getElementById('dOut').style.display='none';
+  try{
+    const fd=new FormData();fd.append('video',f);
+    const r=await fetch('/api/detect',{method:'POST',body:fd});const d=await r.json();
+    if(!r.ok)throw new Error(d.error);
+    renderDetect(d);
+  }catch(e){document.getElementById('dOut').innerHTML=`<div class="card"><div class="empty-state"><div class="icon">⚠</div><div class="title">识别失败</div><div class="desc">${e.message}</div></div></div>`;document.getElementById('dOut').style.display='block';}
+  finally{btn.disabled=false;document.getElementById('dSpin').style.display='none';}
+}
 
-  try {
-    const r = await fetch('/api/generate', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({
-        shape: curShape,
-        bg_angle: parseInt(document.getElementById('bgAngle').value),
-        shape_angle: parseInt(document.getElementById('shAngle').value),
-        block_size: parseInt(document.getElementById('blockSize').value),
-        color: document.getElementById('colorMode').value === '1',
-        thickness_scale: parseFloat(document.getElementById('thickness').value),
-        duration: parseInt(document.getElementById('duration').value)||4,
-      }),
+function renderDetect(d){
+  const out=document.getElementById('dOut');out.style.display='block';
+  let html='';
+
+  if(!d.found){
+    html+=`<div class="card"><div class="empty-state"><div class="icon">🔍</div><div class="title">未检测到独立形状区域</div><div class="desc">${d.message||'所有区域的运动方向一致，没有发现与背景运动不同的形状'}</div></div></div>`;
+    html+=`<div class="card"><h2><span class="dot" style="background:#ccc"></span>后台数据</h2><pre class="raw">${JSON.stringify({背景方向:d.bg_direction,形状方向:d.shape_direction,块大小:d.block_size,面积百分比:d.area_pct},null,2)}</pre></div>`;
+    out.innerHTML=html;return;
+  }
+
+  const s=d.stats||{};
+  const bgDir=(d.bg_direction||[0,0]).map(v=>Number(v).toFixed(1));
+  const shDir=(d.shape_direction||[0,0]).map(v=>Number(v).toFixed(1));
+
+  const shapeT=s.shape_type||'未知';
+  let letter=s.letter||null;
+  let letterConf=s.letter_conf||0;
+  const area=s.area_px||0, areaP=s.area_pct||0;
+  const bboxW=s.bbox_w||0, bboxH=s.bbox_h||0;
+  const verts=s.vertices||0, peri=s.perimeter||0;
+  const circ=s.circularity||0, convex=s.convexity||0, solid=s.solidity||0;
+  const aspect=s.aspect_ratio||1;
+
+  // 从 stats 提取字母信息 (已完成, letter/letterConf 来自 s)
+  // 后续会从 description 补充 OCR 候选
+  const desc=d.description||'';
+
+  // 形状符号映射
+  const SHAPE_ICON={'正方形':'■','圆形':'●','三角形':'▲','星形':'★','六边形':'⬡','菱形':'◆','心形':'♥','十字':'✚',
+    '长方形':'▬','椭圆形':'◉','五边形':'⬠','八边形':'⬡','凸多边形':'⬠','不规则凹形':'◇','近圆形':'◉'};
+  const shapeIcon=Object.entries(SHAPE_ICON).find(([k])=>shapeT.includes(k));
+  const shapeDisplay=shapeIcon?shapeIcon[1]+' '+shapeT:shapeT;
+
+  html+=`<div class="card"><h2><span class="dot" style="background:#22c55e"></span>识别结果</h2>
+    <div class="stat-grid">
+      <div class="stat"><div class="val">${shapeDisplay}</div><div class="lbl">形状类型</div></div>
+      ${letter?`<div class="stat"><div class="val">${letter} <span style="font-size:13px;color:#999">${letterConf}%</span></div><div class="lbl">字母识别</div></div>`:''}
+      <div class="stat"><div class="val">${area.toFixed(0)} px²</div><div class="lbl">面积 (${areaP.toFixed(1)}%)</div></div>
+      <div class="stat"><div class="val">${bboxW.toFixed(0)}×${bboxH.toFixed(0)}</div><div class="lbl">外接矩形 (px)</div></div>
+      <div class="stat"><div class="val">${verts} 个</div><div class="lbl">顶点数</div></div>
+      <div class="stat"><div class="val">${peri.toFixed(0)} px</div><div class="lbl">周长</div></div>
+      <div class="stat"><div class="val">${circ.toFixed(1)}%</div><div class="lbl">圆度</div></div>
+      <div class="stat"><div class="val">${convex.toFixed(1)}%</div><div class="lbl">凸度</div></div>
+      <div class="stat"><div class="val">${solid.toFixed(1)}%</div><div class="lbl">饱满度</div></div>
+    </div>`;
+
+  // OCR 候选列表 (从 stats + description 构建)
+  const allOcr=[];
+  if(letter) allOcr.push({c:letter,s:letterConf});
+  let mM=desc.match(/【可能字母】\s*(.+)/);
+  if(mM){mM[1].split(',').forEach(p=>{const m=p.trim().match(/(\S+)\((\d+)%\)/);if(m&&!allOcr.find(x=>x.c===m[1]))allOcr.push({c:m[1],s:parseInt(m[2])});});}
+  let mO=desc.match(/【其他可能】\s*(.+)/);
+  if(mO){mO[1].split(',').forEach(p=>{const m=p.trim().match(/(\S+)\((\d+)%\)/);if(m&&!allOcr.find(x=>x.c===m[1]))allOcr.push({c:m[1],s:parseInt(m[2])});});}
+
+  if(allOcr.length>0){
+    html+='<div style="margin-top:14px"><div style="font-size:12px;color:#999;margin-bottom:6px">OCR 字母匹配置信度</div>';
+    allOcr.slice(0,6).forEach((x,i)=>{
+      html+='<div class="conf-row"><span class="c" style="color:'+(i===0?'#4f46e5':'#aaa')+'">'+x.c+'</span><div class="bar"><div style="width:'+x.s+'%"></div></div><span class="s">'+x.s+'%</span></div>';
     });
-    if(!r.ok) throw new Error(await r.text());
-    const blob = await r.blob();
-    document.getElementById('genVid').src = URL.createObjectURL(blob);
-    document.getElementById('genCard').style.display = 'block';
-  } catch(e) { alert('Failed: '+e.message); }
-  finally {
-    btn.disabled = false;
-    document.getElementById('genLoading').style.display = 'none';
-  }
-}
-
-// ============ 识别形状 ============
-let detData = null;
-
-async function detect() {
-  const f = document.getElementById('detFile').files[0];
-  if(!f) { alert('请选择视频文件'); return; }
-
-  document.getElementById('btnDet').disabled = true;
-  document.getElementById('detLoading').style.display = 'block';
-  document.getElementById('detResult').style.display = 'none';
-
-  try {
-    const fd = new FormData(); fd.append('video', f);
-    const r = await fetch('/api/detect', { method:'POST', body: fd });
-    const data = await r.json();
-    if(!r.ok) throw new Error(data.error);
-    detData = data;
-    renderDetectResult(data);
-  } catch(e) { alert('Error: '+e.message); }
-  finally {
-    document.getElementById('btnDet').disabled = false;
-    document.getElementById('detLoading').style.display = 'none';
-  }
-}
-
-function renderDetectResult(data) {
-  document.getElementById('detResult').style.display = 'block';
-
-  // 未检测到形状 — 显示清晰提示
-  if(!data.found) {
-    document.getElementById('detStats').innerHTML = `
-      <div class="stat-card" style="grid-column:1/-1">
-        <div class="val" style="font-size:18px;color:#fca5a5">未检测到形状</div>
-        <div class="lbl">${data.message||'视频中可能没有不同运动方向的区域'}</div>
-      </div>`;
-    document.getElementById('ocrBars').innerHTML = '';
-    document.getElementById('detSteps').innerHTML = '';
-    return;
+    html+='</div>';
   }
 
-  // 解析描述提取数值
-  const desc = data.description||'';
-  const get = (re) => { const m=desc.match(re); return m?m[1]:'-'; };
+  html+=`</div>`;
 
-  // 统计卡片
-  const shapeType = get(/【形状类型】\s*(.+)/) || '-';
-  // 初始设为 null，后面 OCR 分析会更新
-  let letter = null;
-  let letterConf = 0;
-  const area = get(/形状面积:\s*([\d.]+)/) || '0';
-  const areaPct = get(/占画面\s*([\d.]+)%/) || '0';
-  const bbox = get(/外接矩形:\s*([\d.]+)\s*[×x]\s*([\d.]+)/);
-  const vertices = get(/顶点数量:\s*(\d+)/) || '0';
-  const circularity = get(/接近圆:\s*([\d.]+)%/) || '0';
-
-  const stats = [
-    {v:shapeType, l:'形状类型'},
-    ...(letter?[{v:letter+(letterConf>0?' ('+letterConf+'%)':''), l:'字母识别'}]:[]),
-    {v:area+' px²', l:'形状面积 ('+areaPct+'%)'},
-    {v:bbox?bbox[1]+'×'+bbox[2]+' px':'-', l:'外接矩形'},
-    {v:vertices+' 个', l:'顶点数'},
-    {v:circularity+'%', l:'圆度'},
-  ];
-
-  document.getElementById('detStats').innerHTML = stats.map(s=>
-    `<div class="stat-card"><div class="val">${s.v}</div><div class="lbl">${s.l}</div></div>`
-  ).join('');
-
-  // OCR 置信度条 — 从描述中提取所有候选
-  const allOcr = [];
-  // 尝试匹配 字母识别 行
-  let mLet = desc.match(/【字母识别】\s*(\S+)\s*\(置信度\s*(\d+)%\)/);
-  if(mLet) allOcr.push({c:mLet[1], s:parseInt(mLet[2])});
-  // 尝试匹配 可能字母 行
-  let mMay = desc.match(/【可能字母】\s*(.+)/);
-  if(mMay) {
-    mMay[1].split(',').forEach(p=>{
-      const m = p.trim().match(/(\S+)\((\d+)%\)/);
-      if(m && !allOcr.find(x=>x.c===m[1])) allOcr.push({c:m[1], s:parseInt(m[2])});
+  if(d.result_dir){
+    const steps=['00_original','01_block_level','02_motion_residual','03_refined_blocks','04_pixel_mask_raw','05_final_overlay'];
+    const labels=['原始帧','块级降采样','运动残差','精炼掩码','像素掩码','最终叠加'];
+    html+='<div class="card"><h2><span class="dot" style="background:#06b6d4"></span>检测过程可视化</h2><div class="img-grid">';
+    steps.forEach((s,i)=>{
+      html+='<div class="item"><img src="/'+d.result_dir+'/'+s+'.png?t='+Date.now()+'" alt="'+labels[i]+'" loading="lazy"><div class="cap">'+(i+1)+'. '+labels[i]+'</div></div>';
     });
+    html+='</div></div>';
   }
-  // 尝试匹配 其他可能 行
-  let mOth = desc.match(/【其他可能】\s*(.+)/);
-  if(mOth) {
-    mOth[1].split(',').forEach(p=>{
-      const m = p.trim().match(/(\S+)\((\d+)%\)/);
-      if(m && !allOcr.find(x=>x.c===m[1])) allOcr.push({c:m[1], s:parseInt(m[2])});
+
+  const chartId='ch'+Date.now();
+  html+=`<div class="card"><h2><span class="dot" style="background:#f59e0b"></span>运动分析图表</h2>
+    <div class="chart-row"><div><canvas id="${chartId}r"></canvas></div><div><canvas id="${chartId}p"></canvas></div></div>
+    <div style="margin-top:16px"><canvas id="${chartId}b" style="max-height:180px"></canvas></div>
+  </div>`;
+
+  html+=`<div class="card"><h2><span class="dot" style="background:#ccc"></span>原始数据</h2><pre class="raw">${JSON.stringify({
+    背景方向: bgDir.map(Number),
+    形状方向: shDir.map(Number),
+    块大小: d.block_size,
+    形状面积: area.toFixed(0)+' px² ('+areaP.toFixed(1)+'%)',
+    外接矩形: bboxW.toFixed(0)+'×'+bboxH.toFixed(0)+' px',
+    宽高比: aspect.toFixed(3),
+    顶点数: verts,
+    周长: peri.toFixed(0)+' px',
+    圆度: circ.toFixed(1)+'%',
+    凸度: convex.toFixed(1)+'%',
+    饱满度: solid.toFixed(1)+'%',
+    轮廓数: d.contours||0,
+    字母识别: letter?letter+' ('+letterConf+'%)':'无',
+    FFT峰值: d.fft_peak||'N/A',
+},null,2)}</pre></div>`;
+
+  out.innerHTML=html;
+
+  // 图表数据（使用结构化数据）
+  const radarData=[circ,convex,solid,Math.min(100,verts*8.3),Math.min(100,Math.abs(1-aspect)*100)];
+  const barData=[circ,convex,solid];
+
+  // Charts
+  requestAnimationFrame(()=>{
+    requestAnimationFrame(()=>{
+      const c1=document.getElementById(chartId+'r');
+      const c2=document.getElementById(chartId+'p');
+      const c3=document.getElementById(chartId+'b');
+      [c1,c2,c3].forEach(c=>{if(c&&c._c)c._c.destroy();});
+      if(c1&&radarData.some(v=>v>0)) c1._c=new Chart(c1,{type:'radar',data:{labels:['圆度','凸度','饱满度','顶点/12','宽高归一化'],datasets:[
+        {label:'检测值',data:radarData,backgroundColor:'rgba(79,70,229,0.15)',borderColor:'#4f46e5',pointBackgroundColor:'#4f46e5'},
+        {label:'正方形参考',data:[78,100,100,33,100],borderColor:'#06b6d4',borderDash:[3,3],pointRadius:0}
+      ]},options:{responsive:true,scales:{r:{min:0,max:100,ticks:{stepSize:25,color:'#ccc'}}},plugins:{title:{display:true,text:'几何特征雷达图',color:'#999',font:{size:12}}}}});
+      if(c2) c2._c=new Chart(c2,{type:'doughnut',data:{labels:['背景运动','形状运动'],datasets:[{data:[1,1],backgroundColor:['rgba(79,70,229,0.6)','rgba(6,182,212,0.6)'],borderColor:['#fff','#fff'],borderWidth:2}]},options:{responsive:true,plugins:{title:{display:true,text:`背景(${bgDir}) vs 形状(${shDir})`,color:'#999',font:{size:12}},legend:{position:'bottom',labels:{font:{size:11}}}}}});
+      if(c3&&barData.some(v=>v>0)) c3._c=new Chart(c3,{type:'bar',data:{labels:['圆度','凸度','饱满度'],datasets:[
+        {label:'检测值',data:barData,backgroundColor:['#4f46e5','#818cf8','#06b6d4']},
+        {label:'正方形参考',data:[78,100,100],backgroundColor:'#ddd'}
+      ]},options:{responsive:true,plugins:{title:{display:true,text:'形状指标对比',color:'#999',font:{size:12}}},scales:{y:{min:0,max:100,ticks:{stepSize:25}}}}});
     });
-  }
-  if(allOcr.length>0) {
-    letter = allOcr[0].c;
-    letterConf = allOcr[0].s;
-    document.getElementById('ocrBars').innerHTML = `
-      <div style="font-size:13px;color:var(--muted);margin-bottom:6px">字母匹配置信度</div>
-      ${allOcr.slice(0,6).map((it,i)=>`
-        <div style="display:flex;align-items:center;gap:8px;margin:4px 0">
-          <span style="width:30px;font-weight:bold;color:${i===0?'var(--accent2)':'var(--muted)'}">${it.c}</span>
-          <div style="flex:1;height:8px;background:#1a1a3e;border-radius:4px;overflow:hidden">
-            <div style="height:100%;width:${it.s}%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:4px"></div>
-          </div>
-          <span style="font-size:11px;color:var(--muted);width:35px">${it.s}%</span>
-        </div>
-      `).join('')}`;
-  }
-
-  // 过程图
-  if(data.result_dir) {
-    const steps = ['00_original','01_block_level','02_motion_residual','03_refined_blocks','04_pixel_mask_raw','05_final_overlay'];
-    const labels = ['原始帧','块级降采样','运动残差','精炼掩码','像素掩码','最终结果'];
-    document.getElementById('detSteps').innerHTML = steps.map((s,i)=>`
-      <div>
-        <img src="/${data.result_dir}/${s}.png?t=${Date.now()}" alt="${labels[i]}" loading="lazy">
-        <div class="step-label">${i+1}. ${labels[i]}</div>
-      </div>
-    `).join('');
-  }
-
-  // 图表
-  drawCharts(data);
-}
-
-function drawCharts(data) {
-  const desc = data.description||'';
-  const get = (re,d='0') => { const m=desc.match(re); return m?parseFloat(m[1]):parseFloat(d); };
-
-  // 雷达图: 几何特征
-  const ctx1 = document.getElementById('chartGeometry');
-  if(ctx1._chart) ctx1._chart.destroy();
-  ctx1._chart = new Chart(ctx1, {
-    type: 'radar',
-    data: {
-      labels: ['圆度','凸度','饱和度','宽高比归一化','顶点归一化'],
-      datasets: [{
-        label: '检测值',
-        data: [
-          get(/接近圆:\s*([\d.]+)%/,0),
-          get(/凸程度:\s*([\d.]+)%/,0),
-          get(/饱满度:\s*([\d.]+)%/,0),
-          Math.min(100,Math.abs(1-get(/宽高比:\s*([\d.]+)/,1))*100),
-          Math.min(100,get(/顶点数量:\s*(\d+)/,0)*8),
-        ],
-        backgroundColor: 'rgba(99,102,241,0.2)',
-        borderColor: '#6366f1',
-      },{
-        label: '正方形参考',
-        data: [78,100,100,100,32],
-        backgroundColor: 'rgba(6,182,212,0.1)',
-        borderColor: '#06b6d4',
-        borderDash: [3,3],
-        pointRadius: 0,
-      }]
-    },
-    options: {
-      responsive:true,
-      scales:{r:{min:0,max:100,ticks:{display:false}}},
-      plugins:{title:{display:true,text:'几何特征雷达图',color:'#888',font:{size:13}}}
-    }
-  });
-
-  // 方向图
-  const ctx2 = document.getElementById('chartMotion');
-  if(ctx2._chart) ctx2._chart.destroy();
-  const bgDir = data.bg_direction ? `${data.bg_direction[0].toFixed(1)},${data.bg_direction[1].toFixed(1)}` : '0,0';
-  const shDir = data.shape_direction ? `${data.shape_direction[0].toFixed(1)},${data.shape_direction[1].toFixed(1)}` : '0,0';
-  const bgDy = parseFloat(bgDir.split(',')[0])||0;
-  const bgDx = parseFloat(bgDir.split(',')[1])||0;
-  const shDy = parseFloat(shDir.split(',')[0])||0;
-  const shDx = parseFloat(shDir.split(',')[1])||0;
-  const bgDeg = Math.atan2(bgDx, bgDy) * 180 / Math.PI;
-  const shDeg = Math.atan2(shDx, shDy) * 180 / Math.PI;
-
-  ctx2._chart = new Chart(ctx2, {
-    type: 'polarArea',
-    data: {
-      labels: ['背景', '形状'],
-      datasets: [{
-        data: [1, data.found?1:0.1],
-        backgroundColor: ['rgba(99,102,241,0.6)','rgba(6,182,212,0.6)'],
-        borderColor: ['#6366f1','#06b6d4'],
-      }]
-    },
-    options: {
-      responsive:true,
-      plugins:{
-        title:{display:true,text:`运动方向  背景:${bgDeg.toFixed(0)}°  形状:${shDeg.toFixed(0)}°`,color:'#888',font:{size:13}},
-        legend:{display:false}
-      }
-    }
   });
 }
 
-// ============ 验证码 ============
-let capToken = '';
-async function refreshCap() {
-  const vid = document.getElementById('capVid');
-  document.getElementById('capInput').value = '';
-  document.getElementById('capResult').innerHTML = '';
-  try {
-    const r = await fetch('/api/captcha/generate');
-    const d = await r.json();
-    capToken = d.token;
-    vid.src = d.video_url+'?t='+Date.now();
-    vid.play();
-  } catch(e) { alert('Error'); }
+// CAPTCHA
+let capToken='',capIsShape=false;
+const SHAPE_POOL=['square','circle','triangle','star','hexagon'];
+const SHAPE_LABELS={'square':'■ 正方形','circle':'● 圆形','triangle':'▲ 三角形','star':'★ 星形','hexagon':'⬡ 六边形'};
+
+async function rCap(){
+  document.getElementById('cRes').innerHTML='';document.getElementById('capInput').value='';
+  document.getElementById('capInput').style.display='none';document.getElementById('capOpts').innerHTML='';
+  try{
+    const r=await fetch('/api/captcha/generate');const d=await r.json();
+    capToken=d.token;document.getElementById('cVid').src=d.video_url+'?t='+Date.now();
+    capIsShape=SHAPE_POOL.includes((d.shape||'').toLowerCase());
+    document.getElementById('capType').textContent=capIsShape?'请点击选择你看到的形状':'请输入你看到的字母';
+    if(capIsShape){
+      document.getElementById('capOpts').innerHTML=SHAPE_POOL.map(s=>`<button onclick="pickCap('${s}')"><span class="sym">${SHAPE_LABELS[s].charAt(0)}</span> ${SHAPE_LABELS[s].slice(2)}</button>`).join('');
+    }else{
+      document.getElementById('capInput').style.display='inline-block';
+      setTimeout(()=>document.getElementById('capInput').focus(),200);
+    }
+  }catch(e){}
 }
-async function verifyCap() {
-  const ans = document.getElementById('capInput').value.trim();
-  if(!ans) return;
-  try {
-    const r = await fetch('/api/captcha/verify',{
-      method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({token:capToken,answer:ans}),
-    });
-    const d = await r.json();
-    document.getElementById('capResult').innerHTML = d.success
-      ? '<span class="badge badge-ok">✓ '+d.message+'</span>'
-      : '<span class="badge badge-err">✗ '+d.message+'</span>';
-    if(d.success) setTimeout(refreshCap, 2000);
-  } catch(e) {}
+function pickCap(s){
+  document.querySelectorAll('#capOpts button').forEach(b=>b.classList.toggle('pick',b.textContent.includes(SHAPE_LABELS[s])));
+  document.getElementById('capInput').value=s;
 }
-refreshCap();
+async function vCap(){
+  const ans=document.getElementById('capInput').value.trim();if(!ans)return;
+  try{
+    const r=await fetch('/api/captcha/verify',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:capToken,answer:ans})});
+    const d=await r.json();
+    document.getElementById('cRes').innerHTML=d.success?`<span class="badge badge-ok">✓ ${d.message}</span>`:`<span class="badge badge-no">✗ ${d.message}</span>`;
+    if(d.success)setTimeout(rCap,2000);
+  }catch(e){}
+}
+rCap();
 </script>
 </body>
 </html>

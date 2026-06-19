@@ -702,7 +702,7 @@ def _draw_direction_arrow(img: np.ndarray, di: int, dj: int,
 # 9. 形状 → 文字描述
 # ============================================================
 
-def describe_shape(mask: np.ndarray, block_size: int = None) -> str:
+def describe_shape(mask: np.ndarray, block_size: int = None):
     """
     将检测到的形状掩码转化为文字描述。
 
@@ -793,7 +793,11 @@ def describe_shape(mask: np.ndarray, block_size: int = None) -> str:
                                   aspect_ratio, solidity, len(approx_coarse))
 
     # --- 字母/数字识别 ---
-    char_matches = recognize_character(mask)
+    # 只在形状复杂（不像纯几何形）时才做 OCR
+    if num_vertices > 4 or convexity < 0.92 or circularity < 0.5:
+        char_matches = recognize_character(mask)
+    else:
+        char_matches = []
 
     # --- 位置描述 ---
     frame_cx, frame_cy = W / 2, H / 2
@@ -818,8 +822,17 @@ def describe_shape(mask: np.ndarray, block_size: int = None) -> str:
         'Pentagon': '五边形', 'Hexagon': '六边形', 'Heptagon': '七边形', 'Octagon': '八边形',
         'Quadrilateral': '四边形', 'Concave / star-shaped': '凹形/星形',
         'Convex shape': '凸多边形', 'Irregular concave shape': '不规则凹形',
+        'Star (3-pointed)': '三角星', 'Star (4-pointed)': '四角星',
+        'Star (5-pointed)': '五角星', 'Star (6-pointed)': '六角星',
+        'Regular polygon': '正多边形', 'Polygon': '多边形',
     }
     shape_cn = SHAPE_CN.get(shape_type, shape_type)
+    # 模糊匹配：如果没找到精确映射，尝试部分匹配
+    if shape_cn == shape_type:
+        for en, cn in SHAPE_CN.items():
+            if en.lower() in shape_type.lower():
+                shape_cn = cn
+                break
 
     # --- 构建中文报告 ---
     lines = []
@@ -879,7 +892,30 @@ def describe_shape(mask: np.ndarray, block_size: int = None) -> str:
             lines.append(f"  正多边形特征 → 估计 {sides} 条边")
     lines.append("=" * 50)
 
-    return "\n".join(lines)
+    # 构建结构化 stats
+    stats = {
+        'shape_type': shape_cn,
+        'vertices': num_vertices,
+        'area_px': area,
+        'area_pct': shape_pct,
+        'bbox_w': bw,
+        'bbox_h': bh,
+        'aspect_ratio': round(aspect_ratio, 3),
+        'perimeter': perimeter,
+        'circularity': round(circularity * 100, 1),
+        'convexity': round(convexity * 100, 1),
+        'solidity': round(solidity * 100, 1),
+    }
+    if char_matches:
+        stats['letter'] = char_matches[0][0]
+        stats['letter_conf'] = int(char_matches[0][1] * 100)
+        stats['letter_candidates'] = [(c, int(s*100)) for c, s in char_matches[:5]]
+    else:
+        stats['letter'] = ''
+        stats['letter_conf'] = 0
+        stats['letter_candidates'] = []
+
+    return "\n".join(lines), stats
 
 
 def _classify_shape(num_vertices: int, circularity: float, convexity: float,
@@ -1180,15 +1216,27 @@ def detect_shape(video_path: str,
     print(f"  块级尺寸: {ds_h}×{ds_w}")
 
     # ── 全局运动估计 ──
-    print(">>> 全局运动估计（找背景方向）")
+    print(">>> 全局运动估计（搜索最佳块位移）")
     bg_di, bg_dj, bg_match = estimate_global_motion(ds_video)
 
-    if bg_match < 0.1:
+    # FFT 相位相关辅助验证（频域方法）
+    from src.motion_analysis import fft_phase_correlation
+    fft_dy, fft_dx, fft_peak = fft_phase_correlation(ds_video[0], ds_video[1])
+    print(f"  FFT相位相关: ({fft_dy},{fft_dx}) 峰值={fft_peak:.3f}")
+
+    if bg_match < 0.02:
         print("  警告: 全局运动匹配率很低，可能背景静止或无规律运动")
 
     # ── 运动残差掩码 ──
     print(">>> 运动残差分析（找偏离背景的区域）")
     candidate_mask = compute_motion_residual_mask(ds_video, bg_di, bg_dj)
+
+    # ── 结构张量方向验证（空域方法）──
+    from src.motion_analysis import compute_direction_divergence_map
+    divergence = compute_direction_divergence_map(ds_video, bg_di, bg_dj)
+    # 用方向差异增强候选掩码
+    high_div = divergence > 0.5  # 方向与背景明显不同的区域
+    candidate_mask = candidate_mask | high_div
 
     # ── 精炼 ──
     print(">>> 精炼形状掩码")
@@ -1257,7 +1305,7 @@ def detect_shape(video_path: str,
 
         # 生成形状文字描述
         print(">>> 生成形状文字描述")
-        description = describe_shape(pixel_mask, block_size)
+        description, _ = describe_shape(pixel_mask, block_size)
         desc_path = os.path.join(output_dir, 'shape_description.txt')
         with open(desc_path, 'w', encoding='utf-8') as f:
             f.write(description)

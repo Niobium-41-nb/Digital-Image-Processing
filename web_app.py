@@ -149,23 +149,30 @@ def api_detect():
         _quiet()
 
         mask = result['mask']
-        if np.sum(mask > 0) == 0:
+        shape_px = int(np.sum(mask > 0))
+        if shape_px == 0:
             return jsonify({
                 'found': False,
-                'message': 'No shape detected — the video may have uniform motion or the algorithm could not find distinct motion regions.',
+                'message': '视频中所有区域的运动方向一致，未发现与背景运动不同的形状区域。',
+                'bg_direction': list(result['bg_direction']),
+                'shape_direction': list(result['shape_direction']),
+                'block_size': result['block_size'],
+                'area_pct': 0,
             })
 
-        # 文字描述
-        desc = describe_shape(mask, block_size=result['block_size'])
+        # 文字描述 + 结构化数据（直接从 describe_shape 返回）
+        desc, stats = describe_shape(mask, block_size=result['block_size'])
 
         return jsonify({
             'found': True,
             'description': desc,
+            'stats': stats,
             'block_size': result['block_size'],
             'bg_direction': list(result['bg_direction']),
             'shape_direction': list(result['shape_direction']),
             'area_pct': round(100 * np.sum(mask > 0) / mask.size, 1),
             'result_dir': f'output/web_uploads/{vid_id}_result',
+            'contours': len(result['contours']),
         })
 
     except Exception as e:
@@ -215,12 +222,23 @@ def api_captcha_generate():
         available = [c for c in grp if c in _all_chars]
         if available:
             pool.append(_random.choice(available))
-    pool += ['square', 'circle', 'triangle', 'star', 'hexagon']
+    shape_pool = ['square', 'circle', 'triangle', 'star', 'hexagon']
+    # 让 shapes 占 ~40%: 把 shape_pool 重复加入
+    pool = pool + shape_pool * max(1, len(pool) // len(shape_pool))
     shape = np.random.choice(pool)
 
-    # 确保两个方向不同
-    bg_angle = np.random.randint(0, 360)
-    sh_angle = (bg_angle + np.random.randint(60, 300)) % 360
+    # 清晰可辨的角度组合，两方向差距 >= 30°
+    ANGLE_PAIRS = [
+        (0, 90), (0, 135), (0, 180), (0, 225), (0, 270), (0, 315),
+        (45, 135), (45, 180), (45, 225), (45, 270), (45, 315),
+        (90, 180), (90, 225), (90, 270), (90, 315), (90, 0),
+        (135, 225), (135, 270), (135, 315), (135, 0), (135, 45),
+        (180, 270), (180, 315), (180, 0), (180, 45), (180, 90),
+        (225, 315), (225, 0), (225, 45), (225, 90), (225, 135),
+        (270, 0), (270, 45), (270, 90), (270, 135), (270, 180),
+        (315, 45), (315, 90), (315, 135), (315, 180), (315, 225),
+    ]
+    bg_angle, sh_angle = ANGLE_PAIRS[np.random.randint(0, len(ANGLE_PAIRS))]
 
     token = uuid.uuid4().hex[:12]
     vid_path = f'output/web_captcha/{token}.mp4'
@@ -228,8 +246,8 @@ def api_captcha_generate():
     from generators.text_shape import generate_text_shape_video
     _loud()
     generate_text_shape_video(vid_path, shape=shape,
-                               bg_angle=np.random.randint(0, 360),
-                               shape_angle=np.random.randint(0, 360),
+                               bg_angle=bg_angle,
+                               shape_angle=sh_angle,
                                block_size=2, color=True,
                                thickness_scale=1.0,
                                width=400, height=400,
@@ -253,6 +271,7 @@ def api_captcha_generate():
     return jsonify({
         'token': token,
         'video_url': f'/api/captcha/video/{token}',
+        'shape': shape,  # 前端据此决定显示按钮还是输入框
     })
 
 
