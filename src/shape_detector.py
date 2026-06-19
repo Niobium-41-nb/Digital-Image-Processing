@@ -830,10 +830,19 @@ def describe_shape(mask: np.ndarray, block_size: int = None) -> str:
     lines.append(f"  【形状类型】 {shape_cn}")
     if char_matches:
         top_char, top_score = char_matches[0]
-        if top_score > 0.5:
-            lines.append(f"  【字母识别】 {top_char}  (置信度 {top_score:.0%})")
-        elif top_score > 0.3:
-            lines.append(f"  【可能字母】 {', '.join(f'{c}({s:.0%})' for c,s in char_matches[:3])}")
+        # 检查是否与第二名接近（歧义情况）
+        ambiguous = (len(char_matches) >= 2 and
+                     char_matches[1][1] >= top_score - 0.03)
+        if top_score > 0.6:
+            if ambiguous:
+                candidates = ', '.join(f'{c}({s:.0%})' for c, s in char_matches[:3])
+                lines.append(f"  【字母识别】 {top_char}  (置信度 {top_score:.0%})")
+                lines.append(f"  【其他可能】 {candidates}")
+            else:
+                lines.append(f"  【字母识别】 {top_char}  (置信度 {top_score:.0%})")
+        elif top_score > 0.35:
+            candidates = ', '.join(f'{c}({s:.0%})' for c, s in char_matches[:3])
+            lines.append(f"  【可能字母】 {candidates}")
     lines.append(f"  【位    置】 {position_desc}")
     lines.append(f"  【中心坐标】 ({cx:.0f}, {cy:.0f})   (画面中心是 {W/2:.0f}, {H/2:.0f})")
     lines.append("")
@@ -944,49 +953,106 @@ def _estimate_polygon_sides(fine_v: int, coarse_v: int,
 
 
 # ============================================================
-# 10. 字母/数字识别 (模板匹配)
+# 10. 字母/数字 OCR — 裁剪归一化 + 多尺度滑动匹配
 # ============================================================
 
-# 缓存参考模板
-_TEMPLATE_CACHE = {}
+# 缓存：字符 → 裁剪归一化后的参考图像
+_TEMPLATE_NORM_CACHE = {}  # char -> (H,W) uint8 binary
 
-def _get_letter_template(char: str, H: int, W: int) -> np.ndarray:
-    """生成单个字母/数字的参考二值掩码。"""
-    key = (char, H, W)
-    if key in _TEMPLATE_CACHE:
-        return _TEMPLATE_CACHE[key]
 
-    # 用与 text_shape.py 相同的渲染方式（保持一致）
+def _render_char_norm(char: str, target_size: int = 100) -> np.ndarray:
+    """渲染一个字符并裁剪+归一化到 target_size×target_size。"""
+    if char in _TEMPLATE_NORM_CACHE:
+        return _TEMPLATE_NORM_CACHE[char]
+
     import cv2
-    mask = np.zeros((H, W), dtype=np.uint8)
+    # 在较大画布上渲染，确保字符完整
+    canvas = np.zeros((400, 400), dtype=np.uint8)
     font = cv2.FONT_HERSHEY_DUPLEX
-    font_scale = min(W, H) / 60
-    thickness = max(8, int(font_scale * 8))
+    font_scale = 3.5
+    thickness = 16
     (tw, th), _ = cv2.getTextSize(char, font, font_scale, thickness)
-    cx, cy = (W - tw) // 2, (H + th) // 2
-    cv2.putText(mask, char, (cx, cy), font, font_scale, 255, thickness)
-    ref = (mask > 0)
-    _TEMPLATE_CACHE[key] = ref
-    return ref
+    cx, cy = (400 - tw) // 2, (400 + th) // 2
+    cv2.putText(canvas, char, (cx, cy), font, font_scale, 255, thickness)
+
+    # 裁剪到内容边界（加小 margin）
+    ys, xs = np.where(canvas > 0)
+    if len(ys) < 10:
+        _TEMPLATE_NORM_CACHE[char] = np.zeros((target_size, target_size), dtype=np.uint8)
+        return _TEMPLATE_NORM_CACHE[char]
+
+    margin = 4
+    y1, y2 = max(0, ys.min()-margin), min(400, ys.max()+margin+1)
+    x1, x2 = max(0, xs.min()-margin), min(400, xs.max()+margin+1)
+    cropped = canvas[y1:y2, x1:x2]
+
+    # 保持宽高比缩放到 target_size
+    h, w = cropped.shape
+    scale = (target_size - 8) / max(h, w)
+    new_h, new_w = int(h * scale), int(w * scale)
+    if new_h < 4 or new_w < 4:
+        _TEMPLATE_NORM_CACHE[char] = np.zeros((target_size, target_size), dtype=np.uint8)
+        return _TEMPLATE_NORM_CACHE[char]
+
+    resized = cv2.resize(cropped, (new_w, new_h), interpolation=cv2.INTER_NEAREST)
+
+    # 放到 target_size 画布中央
+    result = np.zeros((target_size, target_size), dtype=np.uint8)
+    dy, dx = (target_size - new_h) // 2, (target_size - new_w) // 2
+    result[dy:dy+new_h, dx:dx+new_w] = resized
+
+    _TEMPLATE_NORM_CACHE[char] = result
+    return result
+
+
+def _crop_and_normalize(mask: np.ndarray, target_size: int = 100) -> np.ndarray:
+    """将检测到的掩码裁剪到内容边界并归一化到 target_size。"""
+    import cv2
+    ys, xs = np.where(mask > 0)
+    if len(ys) < 10:
+        return np.zeros((target_size, target_size), dtype=np.uint8)
+
+    margin = 6
+    y1, y2 = max(0, ys.min()-margin), min(mask.shape[0], ys.max()+margin+1)
+    x1, x2 = max(0, xs.min()-margin), min(mask.shape[1], xs.max()+margin+1)
+    cropped = (mask[y1:y2, x1:x2] > 0).astype(np.uint8) * 255
+
+    # 保持宽高比缩放
+    h, w = cropped.shape
+    scale = (target_size - 8) / max(h, w)
+    new_h, new_w = int(h * scale), int(w * scale)
+    if new_h < 4 or new_w < 4:
+        return np.zeros((target_size, target_size), dtype=np.uint8)
+
+    resized = cv2.resize(cropped, (new_w, new_h), interpolation=cv2.INTER_NEAREST)
+    result = np.zeros((target_size, target_size), dtype=np.uint8)
+    dy, dx = (target_size - new_h) // 2, (target_size - new_w) // 2
+    result[dy:dy+new_h, dx:dx+new_w] = resized
+    return result
 
 
 def recognize_character(mask: np.ndarray) -> list:
     """
-    用模板匹配识别检测到的形状是不是某个字母/数字。
+    OCR 识别检测到的形状是哪个字母/数字。
 
-    将检测到的二值掩码与 A-Z, 0-9 的参考模板逐一对比，
-    计算 IoU (交并比)，返回所有匹配度 > 阈值的结果。
+    方法：裁剪 + 归一化到统一尺寸 → 多尺度滑动模板匹配。
+    对位置、大小不敏感，能准确识别马赛克化的字母。
 
     参数:
         mask: 像素级二值掩码 (H, W), uint8, 255=前景
 
     返回:
-        [(字符, IoU分数), ...], 按分数降序排列, 如果没有匹配则返回空列表
+        [(字符, 综合得分), ...], 按分数降序, 最多 5 个
     """
     H, W = mask.shape
     detected = mask > 0
     detected_area = np.sum(detected)
     if detected_area < 100:
+        return []
+
+    # 归一化检测到的形状
+    norm_det = _crop_and_normalize(mask, target_size=100)
+    if np.sum(norm_det) < 20:
         return []
 
     # 待匹配的字符池
@@ -995,19 +1061,63 @@ def recognize_character(mask: np.ndarray) -> list:
 
     scores = []
     for char in chars:
-        ref = _get_letter_template(char, H, W)
+        ref = _render_char_norm(char, target_size=100)
         ref_area = np.sum(ref)
-        if ref_area < 50:
+        if ref_area < 20:
             continue
-        # IoU = 交集 / 并集
-        intersection = np.sum(detected & ref)
-        union = np.sum(detected | ref)
-        iou = intersection / union if union > 0 else 0
-        if iou > 0.25:  # 阈值
-            scores.append((char, round(iou, 3)))
+
+        # 多尺度 + 滑动窗口匹配
+        best_score = 0.0
+        # 尝试不同尺度（±15%）
+        for scale in [0.85, 0.92, 1.0, 1.08, 1.15]:
+            s = int(100 * scale)
+            if s < 20:
+                continue
+            ref_scaled = cv2.resize(ref, (s, s), interpolation=cv2.INTER_NEAREST) if scale != 1.0 else ref
+            det_scaled = cv2.resize(norm_det, (s, s), interpolation=cv2.INTER_NEAREST) if scale != 1.0 else norm_det
+
+            # 基本 IoU（居中对齐）
+            det_bin = det_scaled > 127
+            ref_bin = ref_scaled > 127
+            intersection = np.sum(det_bin & ref_bin)
+            union = np.sum(det_bin | ref_bin)
+            iou = intersection / union if union > 0 else 0
+
+            # 小幅度滑动（±3px），取最佳
+            for dy in [-3, 0, 3]:
+                for dx in [-3, 0, 3]:
+                    if dy == 0 and dx == 0:
+                        continue
+                    det_shifted = np.roll(np.roll(det_bin, dy, axis=0), dx, axis=1)
+                    # 边界清零
+                    if dy > 0:
+                        det_shifted[:dy, :] = False
+                    elif dy < 0:
+                        det_shifted[dy:, :] = False
+                    if dx > 0:
+                        det_shifted[:, :dx] = False
+                    elif dx < 0:
+                        det_shifted[:, dx:] = False
+                    inter = np.sum(det_shifted & ref_bin)
+                    un = np.sum(det_shifted | ref_bin)
+                    iou_s = inter / un if un > 0 else 0
+                    if iou_s > iou:
+                        iou = iou_s
+
+            if iou > best_score:
+                best_score = iou
+
+        if best_score > 0.2:
+            scores.append((char, round(best_score, 3)))
 
     scores.sort(key=lambda x: x[1], reverse=True)
-    return scores[:5]  # 最多返回前5个
+
+    # 做一次"与次优的差距"检查来提升置信度
+    if len(scores) >= 2 and scores[0][1] < scores[1][1] * 1.15:
+        # 前两名太接近，标记为不太确定
+        pass  # 仍然返回，但调用方可看分数差距
+
+    return scores[:5]
 
 
 # ============================================================

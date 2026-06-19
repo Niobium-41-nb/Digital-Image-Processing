@@ -184,10 +184,34 @@ def api_captcha_generate():
     _cleanup_old('output/web_captcha')
     os.makedirs('output/web_captcha', exist_ok=True)
 
-    # 随机形状池
-    pool = (list('ABCDEFGHJKLMNPQRSTUVWXYZ') +  # 去除易混淆的 I,O
-            list('23456789') +                    # 去除 0,1
-            ['square', 'circle', 'triangle', 'star', 'hexagon'])
+    # 随机形状池（已去 I/O/0/1，并按易混淆对分组确保不会同时出现）
+    _CONFUSING_GROUPS = [
+        ['8', 'B'],       # 双圈结构
+        ['5', 'S'],       # 曲线形
+        ['2', 'Z'],       # 折线形
+        ['6', 'G'],       # 圈+尾
+        ['C', 'G'],       # 开口圈
+        ['D', 'O', '0'],  # 圆形（O/0 已排除，仅 D）
+        ['E', 'F'],       # 三横
+        ['P', 'R'],       # 圈+腿
+        ['U', 'V'],       # 开口向上 vs 尖底
+        ['M', 'W'],       # 对称峰谷
+        ['H', 'N'],       # 横杠数不同但在马赛克中易混
+    ]
+    _all_chars = list('ABCDEFGHJKLMNPQRSTUVWXYZ23456789')
+    # 构建一个安全的候选池：从每组最多选一个
+    _used_in_groups = set()
+    for grp in _CONFUSING_GROUPS:
+        for c in grp:
+            _used_in_groups.add(c)
+    pool = [c for c in _all_chars if c not in _used_in_groups]  # 非混淆字符
+    # 从每个混淆组随机选一个加入
+    import random as _random
+    for grp in _CONFUSING_GROUPS:
+        available = [c for c in grp if c in _all_chars]
+        if available:
+            pool.append(_random.choice(available))
+    pool += ['square', 'circle', 'triangle', 'star', 'hexagon']
     shape = np.random.choice(pool)
 
     # 随机方向
