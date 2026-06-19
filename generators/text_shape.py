@@ -79,7 +79,7 @@ def _get_shape_mask(shape, H, W, block_size, thickness_scale=1.0):
         char_mask = np.zeros((H, W), dtype=np.uint8)
         font = cv2.FONT_HERSHEY_DUPLEX
         # 字体大小自适应 block_size：块越小字体越大
-        div = {2: 32, 3: 38, 4: 45}.get(block_size, 40)
+        div = {2: 42, 3: 48, 4: 55}.get(block_size, 50)
         font_scale = min(W, H) / div * thickness_scale
         thickness = max(3, int(font_scale * 1.2))
         (tw, th), _ = cv2.getTextSize(shape, font, font_scale, thickness)

@@ -293,14 +293,27 @@ async function detect() {
 function renderDetectResult(data) {
   document.getElementById('detResult').style.display = 'block';
 
+  // 未检测到形状 — 显示清晰提示
+  if(!data.found) {
+    document.getElementById('detStats').innerHTML = `
+      <div class="stat-card" style="grid-column:1/-1">
+        <div class="val" style="font-size:18px;color:#fca5a5">未检测到形状</div>
+        <div class="lbl">${data.message||'视频中可能没有不同运动方向的区域'}</div>
+      </div>`;
+    document.getElementById('ocrBars').innerHTML = '';
+    document.getElementById('detSteps').innerHTML = '';
+    return;
+  }
+
   // 解析描述提取数值
   const desc = data.description||'';
   const get = (re) => { const m=desc.match(re); return m?m[1]:'-'; };
 
   // 统计卡片
   const shapeType = get(/【形状类型】\s*(.+)/) || '-';
-  const letter = get(/【字母识别】\s*(\S+)/) || null;
-  const letterConf = letter ? parseFloat(get(/置信度\s*(\d+)/)||'0') : 0;
+  // 初始设为 null，后面 OCR 分析会更新
+  let letter = null;
+  let letterConf = 0;
   const area = get(/形状面积:\s*([\d.]+)/) || '0';
   const areaPct = get(/占画面\s*([\d.]+)%/) || '0';
   const bbox = get(/外接矩形:\s*([\d.]+)\s*[×x]\s*([\d.]+)/);
@@ -309,7 +322,7 @@ function renderDetectResult(data) {
 
   const stats = [
     {v:shapeType, l:'形状类型'},
-    ...(letter?[{v:letter+(letterConf?' ('+letterConf+'%)':''), l:'字母识别'}]:[]),
+    ...(letter?[{v:letter+(letterConf>0?' ('+letterConf+'%)':''), l:'字母识别'}]:[]),
     {v:area+' px²', l:'形状面积 ('+areaPct+'%)'},
     {v:bbox?bbox[1]+'×'+bbox[2]+' px':'-', l:'外接矩形'},
     {v:vertices+' 个', l:'顶点数'},
@@ -320,30 +333,41 @@ function renderDetectResult(data) {
     `<div class="stat-card"><div class="val">${s.v}</div><div class="lbl">${s.l}</div></div>`
   ).join('');
 
-  // OCR 置信度条
-  const ocrMatches = get(/【其他可能】\s*(.+)/) || get(/【可能字母】\s*(.+)/) || '';
-  if(ocrMatches||letter) {
-    const items = [];
-    if(letter) items.push({c:letter, s:letterConf/100});
-    if(ocrMatches) {
-      ocrMatches.split(',').forEach(p=>{
-        const m2 = p.match(/(\S+)\((\d+)%\)/);
-        if(m2 && m2[1]!==letter) items.push({c:m2[1].trim(), s:parseInt(m2[2])/100});
-      });
-    }
-    if(items.length>0) {
-      document.getElementById('ocrBars').innerHTML = `
-        <div style="font-size:13px;color:var(--muted);margin-bottom:6px">字母匹配置信度</div>
-        ${items.slice(0,6).map((it,i)=>`
-          <div style="display:flex;align-items:center;gap:8px;margin:4px 0">
-            <span style="width:30px;font-weight:bold;color:${i===0?'var(--accent2)':'var(--muted)'}">${it.c}</span>
-            <div style="flex:1;height:8px;background:#1a1a3e;border-radius:4px;overflow:hidden">
-              <div style="height:100%;width:${it.s*100}%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:4px"></div>
-            </div>
-            <span style="font-size:11px;color:var(--muted);width:35px">${(it.s*100).toFixed(0)}%</span>
+  // OCR 置信度条 — 从描述中提取所有候选
+  const allOcr = [];
+  // 尝试匹配 字母识别 行
+  let mLet = desc.match(/【字母识别】\s*(\S+)\s*\(置信度\s*(\d+)%\)/);
+  if(mLet) allOcr.push({c:mLet[1], s:parseInt(mLet[2])});
+  // 尝试匹配 可能字母 行
+  let mMay = desc.match(/【可能字母】\s*(.+)/);
+  if(mMay) {
+    mMay[1].split(',').forEach(p=>{
+      const m = p.trim().match(/(\S+)\((\d+)%\)/);
+      if(m && !allOcr.find(x=>x.c===m[1])) allOcr.push({c:m[1], s:parseInt(m[2])});
+    });
+  }
+  // 尝试匹配 其他可能 行
+  let mOth = desc.match(/【其他可能】\s*(.+)/);
+  if(mOth) {
+    mOth[1].split(',').forEach(p=>{
+      const m = p.trim().match(/(\S+)\((\d+)%\)/);
+      if(m && !allOcr.find(x=>x.c===m[1])) allOcr.push({c:m[1], s:parseInt(m[2])});
+    });
+  }
+  if(allOcr.length>0) {
+    letter = allOcr[0].c;
+    letterConf = allOcr[0].s;
+    document.getElementById('ocrBars').innerHTML = `
+      <div style="font-size:13px;color:var(--muted);margin-bottom:6px">字母匹配置信度</div>
+      ${allOcr.slice(0,6).map((it,i)=>`
+        <div style="display:flex;align-items:center;gap:8px;margin:4px 0">
+          <span style="width:30px;font-weight:bold;color:${i===0?'var(--accent2)':'var(--muted)'}">${it.c}</span>
+          <div style="flex:1;height:8px;background:#1a1a3e;border-radius:4px;overflow:hidden">
+            <div style="height:100%;width:${it.s}%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:4px"></div>
           </div>
-        `).join('')}`;
-    }
+          <span style="font-size:11px;color:var(--muted);width:35px">${it.s}%</span>
+        </div>
+      `).join('')}`;
   }
 
   // 过程图
