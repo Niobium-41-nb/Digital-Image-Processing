@@ -1,145 +1,103 @@
-# 数字图像处理项目
+# 数字图像处理 — 马赛克纹理视频运动感知与形状识别
 
-这是一个用于生成和处理纹理视频的数字图像处理项目，提供了多种视频生成和处理功能，包括双滚动纹理、完美伪装效果、滚动纹理等。
+本项目是一个面向**数字图像处理**研究的实验平台，专注于**马赛克纹理视频**的生成、**运动感知边缘检测**与**形状识别**。
 
-## 项目结构
+---
 
-```
-数字图像处理/
-├── data/                # 输入视频数据目录
-├── generators/          # 视频生成模块
-│   ├── dual_scrolling.py        # 双滚动纹理视频生成
-│   ├── perfect_camouflage.py    # 完美伪装效果视频生成
-│   └── scrolling_texture.py     # 滚动纹理视频生成
-├── output/              # 输出视频目录
-├── src/                 # 核心处理模块
-│   ├── video_converter.py       # 视频与数组转换功能
-│   └── temporal_convolver.py    # 时间卷积处理功能
-├── run.py               # 主程序文件
-└── README.md            # 项目说明文档
-```
+## 使用的技术
 
-## 功能特性
+### 后端核心框架
 
-- ✅ 纹理视频生成
-  - 双滚动纹理视频（背景和前景沿不同方向滚动）
-  - 完美伪装效果视频（前景块与背景融合）
-  - 滚动纹理视频（固定区域内纹理滚动）
-- ✅ 视频与 NumPy 数组之间的相互转换
-- ✅ 时间维度卷积处理
-- ✅ 逐帧卷积处理
-- ✅ 视频差分处理
-- ✅ 最大池化处理
-- ✅ 多通道视频合成（RGB、GB通道）
+| 技术 | 用途 |
+|------|------|
+| **Flask** | Web 后端框架，提供 RESTful API 路由和模板渲染 |
+| **Flask `render_template` / `jsonify` / `session`** | HTML 模板渲染、JSON 响应、会话管理 |
 
-## 安装依赖
+### 图像 / 视频处理
 
-在使用本项目之前，需要安装以下依赖：
+| 技术 | 用途 |
+|------|------|
+| **OpenCV (`cv2`)** | 视频读写（MP4 编解码）、图像处理、形态学操作、轮廓检测 |
+| **NumPy** | 核心数值计算，视频表示为三维数组 `(frames, H, W)` |
+| **SciPy** | `scipy.ndimage.convolve` — 3D 时空卷积边缘检测、`maximum_filter` 最大池化 |
+| **Pillow (`PIL`)** | PNG 帧序列的读写 |
+| **FFmpeg**（subprocess 调用） | 将 `mp4v` 编码的视频转为浏览器兼容的 H.264 格式 |
 
-```bash
-pip install opencv-python numpy scipy
-```
+### 前端
 
-## 核心模块说明
+| 技术 | 用途 |
+|------|------|
+| **HTML5 + CSS3** | 深色主题 UI，纯前端标签页切换 |
+| **原生 JavaScript** | AJAX (`fetch`) 与后端 API 交互，动态更新页面、视频/图片展示 |
+| **`<video>` 标签** | 浏览器内播放生成的马赛克视频 |
 
-### 1. 视频生成模块 (generators/)
+### 科学计算与信号处理算法
 
-#### dual_scrolling.py
-- `generate_dual_scrolling_texture_video()`: 生成双滚动纹理视频，背景向右滚动，前景方块内部向下滚动
+| 技术 | 用途 |
+|------|------|
+| **3D 空间-时间联合卷积** | 将时间平滑核与 Prewitt 方向边缘检测核通过外积组合为 3D 卷积核，一次卷积完成时空边缘检测 |
+| **3D FFT 频域分析** | 分块 3D FFT + overlap-add，在 `(f_x, f_y, f_t)` 频域进行方向滤波和运动分析 |
+| **全局运动估计 + 残差分析** | 多尺度方差检测块大小 → 块级降采样 → 全局背景运动匹配 → 运动残差提取形状 |
 
-#### perfect_camouflage.py
-- `generate_perfect_camouflage_video()`: 生成完美伪装效果视频，前景块在背景中水平移动，利用随机纹理实现伪装效果
+### 项目工具
 
-#### scrolling_texture.py
-- `generate_scrolling_texture_video()`: 生成滚动纹理视频，固定区域内纹理向下循环滚动
+| 技术 | 用途 |
+|------|------|
+| **Python 标准库** | `pathlib`（路径管理）、`argparse`（CLI 参数）、`subprocess`（调用 ffmpeg）、`uuid`、`glob` 等 |
+| **tqdm** | 实验脚本中的进度条显示 |
+| **matplotlib** | 实验脚本中的数据可视化 |
 
-### 2. 核心处理模块 (src/)
+---
 
-#### video_converter.py
-- `mp4_to_grayscale_array()`: 读取MP4文件并返回灰度三维NumPy数组
-- `gray_array_to_mp4()`: 将灰度三维NumPy数组写入MP4文件
-- `two_gray_array_to_GB_mp4()`: 将两个灰度数组作为G和B通道写入彩色视频
-- `three_gray_array_to_RGB_mp4()`: 将三个灰度数组作为RGB通道写入彩色视频
+## 形状识别算法
 
-#### temporal_convolver.py
-- `create_temporal_motion_blur()`: 创建时间维度的运动模糊卷积核
-- `apply_temporal_convolution()`: 对三维数组执行时间卷积
-- `apply_frame_convolution()`: 对每一帧图像执行二维卷积
-- `apply_diff()`: 对视频做差分处理，计算相邻帧的差异
-- `apply_peel_max()`: 对每一帧图像执行最大池化
+该项目的视频形状识别算法是 **运动残差分析法（v2）**，核心流程如下：
 
-## 使用示例
+### 算法流程（6 步）
 
-### 1. 生成纹理视频
+**1. 自动检测马赛克块大小**
 
-```python
-# 生成双滚动纹理视频
-from generators.dual_scrolling import generate_dual_scrolling_texture_video
-generate_dual_scrolling_texture_video('data/dual_scroll.mp4', square_size=4)
+对每一帧，遍历候选块大小（2~32 px），将图像分割为块，统计**块内像素全部相同**（标准差 < 0.5）的均匀块比例，选择均匀比例高且块尽可能小的尺寸。
 
-# 生成完美伪装效果视频
-from generators.perfect_camouflage import generate_perfect_camouflage_video
-generate_perfect_camouflage_video('data/camouflage.mp4', square_size=4)
+**2. 降采样到块级别**
 
-# 生成滚动纹理视频
-from generators.scrolling_texture import generate_scrolling_texture_video
-generate_scrolling_texture_video('data/scrolling.mp4', square_size=4)
-```
+以检测到的块大小对视频进行降采样，每块只取第一个像素（因为马赛克块内像素一致），将 `(F, H, W)` 的视频压缩为 `(F, H/bs, W/bs)` 的块级表示。
 
-### 2. 处理视频
+**3. 全局运动估计（找背景方向）**
 
-```python
-from src.video_converter import mp4_to_grayscale_array, gray_array_to_mp4
-from src.temporal_convolver import create_temporal_motion_blur, apply_temporal_convolution
+尝试所有 9 种可能的块级位移 `(dy, dx) ∈ {-1,0,1}²`：
+- 将前一帧按某个位移平移，与后一帧逐块比较
+- **匹配块数最多的位移** → 背景运动方向
+- 跨多帧对累积投票，提高鲁棒性
 
-# 读取视频为数组
-arr = mp4_to_grayscale_array('data/input.mp4')
+**4. 运动残差分析（定位形状区域）**
 
-# 创建时间卷积核
-convolution = create_temporal_motion_blur(5, 5, 5)
+将前一帧按背景方向平移，与后一帧比较——**不匹配的块**就是运动偏离背景的区域，即形状候选。对所有帧对累积不匹配率，超过阈值（默认 40%）的块标记为候选。
 
-# 应用时间卷积
-processed_arr = apply_temporal_convolution(arr, convolution)
+**5. 精炼掩码（二选一）**
 
-# 保存处理后的视频
-gray_array_to_mp4(processed_arr, 'output/output.mp4')
-```
+在候选区域内估计**第二运动方向**（形状内部的方向），然后对每个候选块比较：
+- 按背景方向平移的匹配率
+- 按形状方向平移的匹配率
+- **形状方向匹配更好 → 确认为形状块**
 
-### 3. 运行主程序
+这一步排除了因噪声产生的假阳性。
 
-```bash
-python run.py
-```
+**6. 后处理**
 
-主程序会读取 `data/dual_scroll_background_right_foreground_down.mp4` 视频，进行以下处理：
-- 时间卷积模糊
-- 垂直和水平方向的边缘检测
-- 视频差分处理
-- 生成多个输出视频文件到 `output/{convolution_size}/` 目录
+- 块级掩码上采样到像素级
+- **闭运算**（填补孔洞）→ **开运算**（去除噪点）
+- **提取最大连通域**（假设只有一个形状）
+- 形态学操作使用椭圆核
 
-## 输出文件
+### 输出
 
-运行主程序后，会在 `output/{convolution_size}/` 目录生成以下文件：
-- `output.mp4`: 时间卷积处理后的视频
-- `output_1.mp4`: 垂直边缘检测结果
-- `output_2.mp4`: 水平边缘检测结果
-- `output_3.mp4`: 视频差分结果
-- `output_RGB.mp4`: RGB通道合成视频（R=垂直边缘, G=水平边缘, B=差分）
-- `output_GB.mp4`: GB通道合成视频（G=垂直边缘, B=水平边缘）
+- 形状的二值掩码
+- 运动方向彩色图（蓝=背景，红=形状）
+- 轮廓叠加可视化视频
+- 文字描述（形状类型、位置、大小、几何属性）
 
-## 技术说明
+### 关键设计思想
 
-- **纹理生成**：使用随机黑白方块纹理，通过 `np.roll()` 实现纹理滚动效果
-- **视频处理**：使用 OpenCV 进行视频读写，NumPy 进行数组操作
-- **卷积处理**：使用 SciPy 的 `ndimage.convolve()` 进行高效卷积计算
-- **进度显示**：所有处理函数都添加了详细的进度显示，方便用户了解处理状态
+> **不尝试为每个块单独匹配运动方向（歧义太大）→ 改为"先找全局背景运动 → 再找偏离区域"的策略**，利用马赛克视频中背景统一运动、形状内部不同方向运动这一特性。
 
-## 注意事项
-
-- 生成视频时，默认分辨率为 1280x720（dual_scrolling 模块为 2048x2048）
-- 处理大型视频时，请注意内存消耗
-- 输出目录会自动创建，无需手动创建
-
-## 许可证
-
-本项目采用 MIT 许可证，详见 LICENSE 文件。
