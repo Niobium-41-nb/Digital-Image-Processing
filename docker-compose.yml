@@ -1,0 +1,29 @@
+# ============================================================
+# docker-compose.yml — 数字图像处理 Flask Web 应用
+# ============================================================
+# 启动:
+#   docker compose up -d
+#
+# 停止:
+#   docker compose down
+#
+# 查看日志:
+#   docker compose logs -f
+#
+# 访问: http://localhost:5000
+# ============================================================
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mosaic-vision
+    ports:
+      - "5000:5000"
+    volumes:
+      # 将输出目录挂载到宿主机，方便查看生成的结果文件
+      - ./output:/app/output
+    environment:
+      - TZ=Asia/Shanghai
+    restart: unless-stopped
