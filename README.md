@@ -6,6 +6,8 @@
 
 ## 快速开始
 
+### 方式一：本地运行
+
 ```bash
 pip install flask opencv-python numpy scipy pillow
 python web_app.py
@@ -14,6 +16,44 @@ python web_app.py
 访问 `http://localhost:5000` 即可使用。
 
 > **注意**：视频转码需要安装 [FFmpeg](https://ffmpeg.org/)，若未安装则回退使用原始 mp4v 编码（部分浏览器可能不兼容）。
+
+### 方式二：Docker 部署（推荐）
+
+使用 Docker 可免去本地 Python 环境配置，一键启动。
+
+**前提条件**：安装 [Docker](https://docker.com/) 和 [Docker Compose](https://docs.docker.com/compose/)。
+
+```bash
+# 构建并启动容器
+docker compose up -d
+
+# 查看运行日志
+docker compose logs -f
+
+# 访问 http://localhost:5000
+```
+
+**单独使用 Docker（不使用 Compose）：**
+
+```bash
+# 构建镜像
+docker build -t mosaic-vision .
+
+# 运行容器
+docker run -d -p 5000:5000 --name mosaic-vision mosaic-vision
+```
+
+**常用命令：**
+
+| 命令 | 说明 |
+|------|------|
+| `docker compose up -d` | 后台启动服务 |
+| `docker compose down` | 停止并移除容器 |
+| `docker compose logs -f` | 实时查看日志 |
+| `docker compose restart` | 重启服务 |
+| `docker images mosaic-vision` | 查看镜像信息 |
+
+> **Docker 镜像内置 FFmpeg**，无需额外安装，视频编码兼容性更好。
 
 ---
 

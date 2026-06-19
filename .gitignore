@@ -7,5 +7,5 @@ generate_ppt.js
 package.json
 package-lock.json
 SHIT-中文LaTeX模版（请用XeLaTeX编译）/
-paper/
-data/
+paper/*
+data/*
