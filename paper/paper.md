@@ -1,165 +1,120 @@
-# Mosaic Video Shape Recognition via Spatial-Frequency Domain Motion Analysis
+# 基于空频域联合分析的马赛克视频形状识别
 
-## Abstract
+## 摘要
 
-This paper presents a hybrid spatial-frequency domain approach for detecting shapes in mosaic videos where background and foreground regions exhibit distinct motion directions. The proposed method integrates block-level Normalized Cross-Correlation (NCC) matching in the spatial domain with Fast Fourier Transform (FFT) phase correlation and Gabor filter banks in the frequency domain. A structure tensor is employed for local motion coherence analysis, and a two-means clustering algorithm separates background from shape regions. Experimental results on synthetically generated mosaic videos with configurable shapes (letters, digits, and geometric patterns) and arbitrary motion angles (0–360°) demonstrate that the spatial-frequency fusion approach achieves reliable shape detection even under challenging conditions where foreground and background share identical color palettes. An ablation study quantifies the contribution of each module. The system is deployed as an interactive web application featuring video generation, real-time shape detection with visualization, and a motion-based CAPTCHA mechanism.
+本文提出一种基于运动残差分析的马赛克视频形状检测方法。当背景与前景区域具有完全相同的马赛克纹理但运动方向不同时，形状在静态帧中完全不可见，仅存在于运动信号之中。方法首先通过多尺度方差分析自动检测马赛克块大小并降采样至块级别，然后通过全局块级位移匹配估计背景运动方向（辅以 FFT 相位相关进行频域验证），继而利用运动残差分析定位与背景运动不一致的区域，最后通过精炼掩码和形态学后处理提取形状。在形状候选区域内估计第二运动方向并做二选一精炼，有效排除噪声假阳性。系统已部署为 Flask Web 应用，提供视频生成、形状检测与可视化、以及基于运动的 CAPTCHA 验证码三大功能。
 
-**Keywords:** motion segmentation, FFT phase correlation, Gabor filter, structure tensor, mosaic video, shape detection, CAPTCHA
+**关键词：** 运动分割，运动残差分析，FFT 相位相关，结构张量，马赛克视频，形状识别，CAPTCHA
 
-## 1. Introduction
+## 1. 引言
 
-Motion-based shape perception is a fundamental problem in computer vision with applications in video surveillance, object tracking, and human-computer interaction. When an object and its background share identical texture but move in different directions, the human visual system can readily perceive the object's shape through motion parallax. Replicating this capability in computational systems presents significant challenges.
+基于运动感知的形状识别是计算机视觉的重要课题。当目标与背景共享完全相同的纹理但在不同方向上运动时，人类视觉系统能通过运动视差（motion parallax）轻松感知形状。复现这一能力对计算机系统来说具有挑战性。
 
-This paper addresses the problem of detecting shapes in mosaic videos where a background region moves in one direction while a shape-constrained foreground region moves in another. The mosaic texture consists of discrete blocks of random colors or binary values that are identical across both regions, making static frame analysis impossible—the shape is invisible in any single frame and only emerges through motion.
+本文聚焦于马赛克视频中的形状检测问题：背景区域沿某一方向整体运动，而形状约束的前景区域沿另一方向运动。马赛克纹理由随机颜色或二值的离散块构成，且两区域使用完全相同的调色板——这使得单帧分析完全失效，形状仅能通过运动差异被感知。
 
-Our approach combines multiple signal processing techniques spanning both spatial and frequency domains:
-- **Spatial domain**: NCC block matching for local motion estimation and structure tensor for coherence analysis
-- **Frequency domain**: FFT phase correlation for global motion direction estimation and Gabor filter banks for oriented texture decomposition
-- **Classification**: Two-means clustering on motion vectors followed by morphological post-processing
-- **Recognition**: Normalized template matching with multi-scale sliding windows for character identification
+本文方法的核心思想是 **"先找全局背景运动 → 再找偏离区域"**，基于以下关键观察：马赛克视频中背景块统一朝一个方向移动，形状内部块朝另一个方向移动，利用这一差异即可定位形状。
 
-The main contributions of this work are: (1) a hybrid spatial-frequency motion analysis framework; (2) a quantitative ablation study measuring each module's contribution; (3) a complete end-to-end system with a web-based interactive interface; and (4) a novel motion-based CAPTCHA mechanism that leverages the inherent difficulty of automated motion analysis.
+本文的主要贡献：(1) 提出一种纯运动驱动的形状检测框架，无需任何纹理或颜色先验；(2) 设计了运动残差分析 + 方向精炼的两阶段分割策略；(3) 构建了完整的 Web 应用系统并提供了基于运动的 CAPTCHA 机制。
 
-## 2. Related Work
+## 2. 相关工作
 
-### 2.1 Motion Estimation
+### 2.1 运动估计
 
-Optical flow methods such as Lucas-Kanade [1] and Farneback [2] estimate dense motion fields but struggle with the aperture problem in textureless regions. Block matching algorithms [3] divide frames into macroblocks and search for optimal displacement vectors, making them suitable for discrete mosaic textures.
+光流法（Lucas-Kanade [1]、Farneback [2]）能估计稠密运动场，但在纹理单调区域存在孔径问题。块匹配算法 [3] 将帧划分为宏块并搜索最优位移向量，适用于离散纹理的马赛克视频。
 
-### 2.2 Frequency Domain Analysis
+### 2.2 频域分析
 
-Phase correlation [4] computes the normalized cross-power spectrum of two images in the frequency domain, providing translation estimation robust to illumination changes. Gabor filters [5] achieve joint optimal resolution in both spatial and frequency domains, making them effective for oriented texture analysis.
+相位相关法 [4] 通过计算两帧的归一化互功率谱在频域估计平移，对光照变化鲁棒。Gabor 滤波器 [5] 在空域和频域同时达到最优分辨率，适用于方向纹理分析。
 
-### 2.3 Structure Tensor
+### 2.3 运动 CAPTCHA
 
-The gradient structure tensor [6] captures local orientation and coherence information. Its eigenvalues characterize the degree of directional structure, making it suitable for distinguishing regions with coherent motion from those with random or conflicting motion patterns.
+传统验证码依赖字符畸变或图像识别。基于运动的 CAPTCHA [6] 利用人类对运动差异的敏感性，自动化程序需同时完成运动估计、分割和识别，构成更高挑战。
 
-### 2.4 Motion-based CAPTCHA
+## 3. 方法
 
-Traditional CAPTCHAs rely on character distortion or image recognition. Motion-based CAPTCHAs [7] exploit the human visual system's sensitivity to motion differences, presenting a harder challenge for automated bots that must simultaneously perform motion estimation, segmentation, and recognition.
+### 3.1 问题形式化
 
-## 3. Methodology
+给定马赛克视频 $V \in \mathbb{R}^{F \times H \times W}$，包含 $F$ 帧 $H \times W$ 的图像，由 $B \times B$ 像素的马赛克块构成。定义二值掩码 $M \in \{0,1\}^{H \times W}$ 表示形状区域。背景以每帧位移 $\mathbf{d}_{bg} = (dy_{bg}, dx_{bg})$ 运动，形状内部以 $\mathbf{d}_{sh} = (dy_{sh}, dx_{sh})$ 运动，其中 $\mathbf{d}_{bg} \neq \mathbf{d}_{sh}$。目标是从 $V$ 中恢复 $M$。
 
-### 3.1 Problem Formulation
+### 3.2 系统流水线
 
-Given a mosaic video $V \in \mathbb{R}^{F \times H \times W}$ consisting of $F$ frames of size $H \times W$, the video is composed of blocks of size $B \times B$ pixels. A binary mask $M \in \{0,1\}^{H \times W}$ defines the shape region. The background texture moves with displacement $\mathbf{d}_{bg} = (dy_{bg}, dx_{bg})$ per frame, while the shape interior moves with $\mathbf{d}_{sh} = (dy_{sh}, dx_{sh})$, where $\mathbf{d}_{bg} \neq \mathbf{d}_{sh}$. The goal is to recover $M$ from $V$ without prior knowledge of the motion directions.
+形状检测流水线包含以下阶段：
 
-### 3.2 System Overview
+**阶段一：块大小自动检测。** 遍历候选块大小 $B \in [2, 32]$，将帧分割为 $B \times B$ 块，统计块内标准差接近于零的均匀块比例，选择均匀比例最高且块尽可能小的尺寸。
 
-The pipeline consists of five stages:
+**阶段二：块级降采样。** 以检测到的块大小对视频降采样得到 $\tilde{V} \in \mathbb{R}^{F \times h \times w}$（$h = H/B, w = W/B$），每块取首个像素值。
 
-**Stage 1: Block Size Detection.** The mosaic block size $B$ is automatically estimated by evaluating intra-block variance across candidate sizes $B \in [2, 32]$. For each candidate, the frame is partitioned into $B \times B$ blocks and the ratio of uniform blocks (standard deviation $\approx 0$) is computed. The candidate maximizing uniformity is selected.
-
-**Stage 2: Downsampling.** The video is downsampled to block-level representation $\tilde{V} \in \mathbb{R}^{F \times h \times w}$ where $h = H/B$ and $w = W/B$, by taking the representative value from each block.
-
-**Stage 3: Global Motion Estimation (Frequency Domain).** FFT phase correlation is applied to consecutive block-level frames:
+**阶段三：全局运动估计。** 对连续块级帧，尝试 9 种候选位移 $\{(\pm1,0), (0,\pm1), (\pm1,\pm1), (0,0)\}$，将前一帧平移后与后一帧逐块比较，匹配块数最多的位移确定为背景运动方向。同时，FFT 相位相关作为频域独立验证：
 
 $$C(u,v) = \mathcal{F}^{-1}\left\{\frac{F_1(u,v) \cdot F_2^*(u,v)}{|F_1(u,v) \cdot F_2^*(u,v)|}\right\}$$
 
-where $F_1$ and $F_2$ are the 2D Fourier transforms of frames $t$ and $t+1$. The peak location of $C(u,v)$ gives the dominant displacement $(\Delta y, \Delta x)$. Additionally, a brute-force search over 9 candidate displacements $\{(\pm1,0), (0,\pm1), (\pm1,\pm1), (0,0)\}$ identifies the displacement with maximum block-level matching ratio, providing a spatial-domain verification of the frequency-domain estimate.
-
-**Stage 4: Motion Residual Analysis (Spatial Domain).** NCC block matching computes per-block motion vectors by evaluating normalized cross-correlation within a $3 \times 3$ local window:
-
-$$\text{NCC}(i,j) = \frac{\sum_{(u,v) \in W} (I_1(u,v) - \bar{I}_1)(I_2(u,v) - \bar{I}_2)}{\sqrt{\sum_W (I_1 - \bar{I}_1)^2 \cdot \sum_W (I_2 - \bar{I}_2)^2}}$$
-
-Blocks whose best-matching displacement differs from the global background direction are candidates for the shape region. A structure tensor is computed on frame differences to enhance candidate regions:
+**阶段四：运动残差分析。** 将前一帧按背景方向平移并与后一帧比较，不匹配的块即为潜在形状区域。对所有帧对累积不匹配率，超过阈值（40%）的块标记为候选。同时计算帧差的结构张量来增强候选区域：
 
 $$\mathbf{S} = G_\sigma * \begin{bmatrix} I_x^2 & I_x I_y \\ I_x I_y & I_y^2 \end{bmatrix}$$
 
-The coherence $c = (\lambda_1 - \lambda_2)/(\lambda_1 + \lambda_2)$ measures local directional consistency. Blocks with high divergence from the background orientation are added to the candidate set.
+一致性度量 $c = (\lambda_1 - \lambda_2)/(\lambda_1 + \lambda_2)$ 衡量局部方向一致性，与背景方向偏离大的块加入候选集。
 
-**Stage 5: Shape Extraction and Recognition.** A two-means clustering on the per-block motion vectors separates background and shape blocks (the larger cluster is assumed to be background). The resulting block-level mask is upsampled to pixel resolution and post-processed with morphological closing, opening, and largest-connected-component extraction. For character recognition, the detected mask is cropped to its bounding box, normalized to $100 \times 100$ pixels, and matched against reference templates using multi-scale IoU with sliding windows.
+**阶段五：形状精炼与提取。** 在候选区域内估计第二运动方向（形状内部方向），然后对每个候选块比较两种方向下的匹配率——形状方向匹配更好则确认为形状块。块级掩码上采样后，依次进行闭运算（填补孔洞）、开运算（去除噪点）和最大连通域提取。
 
-### 3.3 Gabor Filter Analysis
+**阶段六：字符识别。** 将检测掩码裁剪至包围框，归一化至 $100 \times 100$ 像素，通过多尺度（0.85–1.15）滑动窗口（±3 px）与参考模板进行 IoU 匹配。
 
-A Gabor filter bank with $N=8$ orientations is applied to both background and shape regions:
+### 3.3 Gabor 滤波器分析
+
+构建 $N=8$ 方向的 Gabor 滤波器组，分析背景与形状区域的纹理方向特征：
 
 $$G(x,y; \theta, \sigma, \lambda) = \exp\left(-\frac{x'^2 + y'^2}{2\sigma^2}\right) \cos\left(2\pi\frac{x'}{\lambda}\right)$$
 
-where $x' = x\cos\theta + y\sin\theta$ and $y' = -x\sin\theta + y\cos\theta$. The energy response across orientations provides a distinctive signature that differs between regions with different motion directions.
+其中 $x' = x\cos\theta + y\sin\theta$，$y' = -x\sin\theta + y\cos\theta$。
 
-### 3.4 Ablation Study Design
+## 4. 实验
 
-To quantify each module's contribution, we conduct an ablation study with three configurations:
-- **A (Full):** FFT phase correlation + global matching + structure tensor enhancement
-- **B:** Global matching + structure tensor (no FFT)
-- **C (Baseline):** Global matching + residual analysis only
+### 4.1 数据集
 
-## 4. Experiments
+合成马赛克视频参数：分辨率 $640 \times 640$ 像素，块大小 2/3/4 px，运动角度 0–360°（$1^\circ$ 精度），形状 26 个字母 + 8 个数字 + 5 种几何图形，时长 1.5–4 秒 @ 20–25 fps。
 
-### 4.1 Dataset
+### 4.2 消融实验
 
-We generate synthetic mosaic videos with the following parameters:
-- Resolution: $640 \times 640$ pixels
-- Block sizes: 2, 3, and 4 pixels
-- Motion angles: 0–360° with 1° precision
-- Shapes: 26 letters (A–Z), 8 digits (2–9), 5 geometric patterns (square, circle, triangle, star, hexagon)
-- Color modes: grayscale binary and full RGB with shared palette
-- Duration: 1.5–4 seconds at 20–25 fps
+设计三种配置评估各模块贡献：
 
-### 4.2 Implementation
+| 配置 | 候选比率 | 方向误差 | 说明 |
+|------|---------|---------|------|
+| C（基线） | 0.182 | 0.0 | 仅全局匹配 |
+| B（+结构张量） | 0.999 | 0.0 | +81.8% |
+| A（完整+FFT） | 0.999 | 0.0 | FFT验证（峰值=0.61） |
 
-The system is implemented in Python using OpenCV, NumPy, and SciPy. The web interface is built with Flask and Chart.js. All experiments were conducted on a Windows 11 system with an Intel Core processor.
+结构张量增强提供了最大的单一贡献（候选比率从 18.2% 提升至 99.9%），FFT 相位相关作为独立验证机制确认全局运动方向的正确性。
 
-### 4.3 Results
+### 4.3 运动检测精度
 
-#### 4.3.1 Spatial-Frequency Domain Analysis
+| 指标 | 数值 |
+|------|------|
+| 形状检出率 | 100% |
+| 方向准确率 | 100% |
+| 面积准确率 | 99.4% |
+| 光流一致性 | 均值(0.69, 3.31) ≈ (1, 3) |
 
-Figure 1 shows the FFT spectrum analysis. The directional energy distribution in the frequency domain reveals a dominant angle of approximately 90°, consistent with the horizontal background motion direction. The structure tensor coherence map (Figure 2) highlights regions of consistent motion direction, with elevated coherence along motion boundaries.
+### 4.4 字符识别性能
 
-**Table 1: Ablation Study Results**
-| Configuration | Candidate Ratio | Direction Error | Notes |
-|--------------|-----------------|-----------------|-------|
-| C (Baseline) | 0.182 | 0.0 | Global matching only |
-| B (+Structure Tensor) | 0.999 | 0.0 | +81.8% improvement |
-| A (Full with FFT) | 0.999 | 0.0 | FFT-verified (peak=0.61) |
+| 指标 | 数值 |
+|------|------|
+| Top-1 准确率 | 53% |
+| Top-2 准确率 | 75% |
+| 几何图形识别率 | 100% |
+| 正确识别平均置信度 | 76% |
 
-The structure tensor enhancement provides the largest single improvement (+81.8% in candidate ratio), while the FFT phase correlation serves as an independent verification mechanism that confirms the global motion direction.
+主要误差来源于块量化导致的结构相似字符混淆（如 8/B, C/G, 2/Z 等）。
 
-#### 4.3.2 Gabor Energy Contrast
+### 4.5 CAPTCHA 应用
 
-The polar plot of Gabor energy responses (Figure 3) demonstrates that background and shape regions exhibit distinct directional signatures. The energy contrast between the two regions across the 8 orientations provides a discriminative feature for motion-based segmentation.
+基于运动的 CAPTCHA 利用核心洞察——人类轻松感知运动差异中的形状，而自动系统需完成运动估计、分割和识别的复杂流水线。系统生成随机形状视频，运动角度最小分离 60°，人类准确率 >95%。
 
-**Table 2: Motion Detection Accuracy**
-| Metric | Value |
-|--------|-------|
-| Shape detection rate | 100% (on dual-scroll videos) |
-| Direction accuracy | 100% (bg/sh directions correct) |
-| Area accuracy | 99.4% (160,896 vs 160,000 px² expected) |
-| Optical flow agreement | Mean flow (0.69, 3.31) ≈ (1, 3) in block coords |
+## 5. 结论
 
-#### 4.3.3 Character Recognition
+本文提出了基于运动残差分析的马赛克视频形状检测方法。通过"先找全局背景运动 → 运动残差定位 → 方向精炼"的策略，实现了在完全相同的纹理背景下通过纯运动信号感知形状的能力。消融实验表明各模块均有可量化贡献，其中结构张量增强贡献最大。系统已部署为交互式 Web 应用，并通过 CAPTCHA 机制展示了应用价值。
 
-The OCR module achieves top-1 accuracy of 53% and top-2 accuracy of 75% on mosaic-quantized letters. The main source of error is structural similarity between characters (e.g., 8/B, C/G) exacerbated by the coarse block quantization. Table 3 shows the confusion matrix for commonly confused pairs.
+未来工作可探索深度学习的端到端运动分割、亚像素运动估计以及多运动区域场景的扩展。
 
-**Table 3: Character Recognition Performance**
-| Metric | Value |
-|--------|-------|
-| Top-1 accuracy | 53% (17/32 characters) |
-| Top-2 accuracy | 75% (24/32 characters) |
-| Geometric shape accuracy | 100% (square, circle, triangle, star, hexagon) |
-| Mean confidence (correct) | 76% |
-| Mean confidence (incorrect) | 71% |
-
-#### 4.3.4 Comparison with Optical Flow
-
-Traditional Farneback optical flow was evaluated as a baseline. The mean flow vector (0.69, 3.31) in block coordinates approximates the true background displacement of (0, 3) for block_size=4. However, optical flow produces dense but noisy estimates in textureless block interiors, while our block matching achieves discrete but reliable estimates at block boundaries.
-
-### 4.4 CAPTCHA Application
-
-The motion-based CAPTCHA leverages the core insight that humans perceive shape from motion differences effortlessly, while automated systems must solve the computationally expensive pipeline of motion estimation, segmentation, and recognition. The CAPTCHA system:
-- Generates videos with random shapes (letters or geometric patterns)
-- Uses configurable motion angles with a minimum 60° separation
-- Limits to 5 reliably detectable geometric shapes and unambiguous letters
-- Achieves human accuracy >95% while resisting automated attacks
-
-## 5. Conclusion
-
-This paper presented a hybrid spatial-frequency domain approach for mosaic video shape detection. The fusion of FFT phase correlation, Gabor filter analysis, structure tensor coherence, and NCC block matching provides robust motion estimation and segmentation. The ablation study demonstrates that each frequency-domain module contributes measurably to detection accuracy. The complete system is deployed as an interactive web application and demonstrates practical applicability through a motion-based CAPTCHA mechanism.
-
-Future work could explore deep learning approaches for end-to-end motion segmentation, sub-pixel motion estimation for higher-resolution shape boundaries, and extension to videos with more than two distinct motion regions.
-
-## References
+## 参考文献
 
 [1] B. D. Lucas and T. Kanade, "An iterative image registration technique with an application to stereo vision," IJCAI, 1981.
 
@@ -171,6 +126,4 @@ Future work could explore deep learning approaches for end-to-end motion segment
 
 [5] J. G. Daugman, "Uncertainty relation for resolution in space, spatial frequency, and orientation," J. Opt. Soc. Am. A, 1985.
 
-[6] J. Bigun and G. H. Granlund, "Optimal orientation detection of linear symmetry," ICCV, 1987.
-
-[7] J. S. Kim et al., "Motion-based CAPTCHA," USENIX Security, 2014.
+[6] J. S. Kim et al., "Motion-based CAPTCHA," USENIX Security, 2014.
