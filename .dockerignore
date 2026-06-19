@@ -1,0 +1,47 @@
+# ============================================================
+# .dockerignore — Docker 构建上下文排除清单
+# ============================================================
+
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+*.egg
+
+# IDE / 编辑器
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 输出文件（不打包进镜像，通过 volume 挂载）
+output/
+
+# 实验数据
+experiments/
+data/
+
+# 图片/文档（非运行时必需）
+img/
+docs/
+work/
+
+# Docker 自身
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# 其他
+*.md
+*.drawio
+*.bat
+*.ps1
+*.sh
+*.env
