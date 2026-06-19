@@ -2,3 +2,9 @@
 output
 __pycache__/
 .env
+node_modules/
+generate_ppt.js
+package.json
+package-lock.json
+SHIT-中文LaTeX模版（请用XeLaTeX编译）/
+paper/
