@@ -9,3 +9,5 @@ package-lock.json
 SHIT-中文LaTeX模版（请用XeLaTeX编译）/
 paper/*
 data/*
+报告输出/
+gen_report_ppt.js
